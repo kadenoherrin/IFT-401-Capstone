@@ -1,0 +1,582 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+import random
+from itsdangerous import URLSafeTimedSerializer
+import os
+from dotenv import load_dotenv
+import alpaca_trade_api as tradeapi
+load_dotenv()
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://root:{os.getenv('SQL_PASSWORD')}@localhost/flask"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+# Unauthorized handler: if not logged in, redirect to a custom unauthorized page
+@login_manager.unauthorized_handler
+def unauthorized_callback():
+    return redirect(url_for('unauthorized'))
+
+# -------------------- Models --------------------
+class Users(UserMixin, db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    fullname = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(50), default="user", nullable=False)
+    balance = db.Column(db.Float, default=0.0)  
+
+
+class Stock(db.Model):
+    __tablename__ = 'stocks'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)  # Keep for descriptive purposes
+    symbol = db.Column(db.String(10), unique=True, nullable=False)  # New column for stock symbol
+    initial_price = db.Column(db.Float, nullable=False)
+
+class Transaction(db.Model):
+    __tablename__ = 'transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    stock_id = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
+    shares = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    transaction_type = db.Column(db.Enum('buy', 'sell'), nullable=False)
+    transaction_date = db.Column(db.DateTime, server_default=db.func.current_timestamp())
+
+class Admin(db.Model):
+    __tablename__ = 'admin'
+    id = db.Column(db.Integer, primary_key=True)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    day_start = db.Column(db.String(10), nullable=False, default='Monday')
+    day_end = db.Column(db.String(10), nullable=False, default='Friday')
+
+with app.app_context():
+    db.create_all()
+    if not Admin.query.first():
+        # Initialize default market times if not present
+        db.session.add(Admin(start_time="09:00:00", end_time="16:00:00", 
+                           day_start="Monday", day_end="Friday"))
+        db.session.commit()
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Users.query.get(int(user_id))
+
+# -------------------- Password Reset Functions --------------------
+def generate_reset_token(email, salt='password-reset-salt'):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.dumps(email, salt=salt)
+
+def verify_reset_token(token, expiration=3600, salt='password-reset-salt'):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        email = serializer.loads(token, salt=salt, max_age=expiration)
+    except Exception:
+        return None
+    return email
+
+@app.template_filter('currency')
+def currency_format(value):
+    """Formats a number as currency (e.g., $1,234.56)."""
+    try:
+        return "${:,.2f}".format(float(value))
+    except (ValueError, TypeError):
+        return value
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Alpaca API
+api = tradeapi.REST(
+    os.getenv('ALPACA_API_KEY'),
+    os.getenv('ALPACA_SECRET_KEY'),
+    os.getenv('ALPACA_API_URL')
+)
+
+# -------------------- Routes --------------------
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        fullname = request.form.get('fullname')
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        if Users.query.filter_by(username=username).first():
+            flash('Username already exists. Please choose a different one.', 'danger')
+            return redirect(url_for('register'))
+        if Users.query.filter_by(email=email).first():
+            flash('Email already registered. Please use a different email.', 'danger')
+            return redirect(url_for('register'))
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        new_user = Users(fullname=fullname, username=username, email=email, password=hashed_password, role="user")
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Registration successful! Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = Users.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            flash(f'Welcome, {user.fullname}!', 'success')
+            return redirect(url_for('portfolio'))
+        else:
+            flash('Invalid username or password', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/')
+def home():
+    return render_template('home.html', current_user=current_user)
+
+@app.route('/about')
+def about():
+    return render_template('about.html', title='About')
+
+@app.route('/contact', methods=['GET', 'POST'])
+def contact():
+    if request.method == 'POST':
+        name = request.form['name']
+        email = request.form['email']
+        flash(f'Thank you {name}, we have received your message!', 'success')
+        return redirect(url_for('home'))
+    return render_template('contact.html', title='Contact')
+
+# -------------------- Password Reset Routes --------------------
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_request():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = Users.query.filter_by(email=email).first()
+        if user:
+            token = generate_reset_token(email)
+            flash('A password reset link has been sent to your email. (For demo, you are being redirected.)', 'info')
+            return redirect(url_for('reset_token', token=token))
+        else:
+            flash('No account found with that email.', 'danger')
+            return redirect(url_for('login'))
+    return render_template('reset_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_token(token):
+    email = verify_reset_token(token)
+    if not email:
+        flash('The reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('reset_request'))
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm = request.form.get('confirm_password')
+        if password != confirm:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for('reset_token', token=token))
+        user = Users.query.filter_by(email=email).first()
+        if user:
+            user.password = generate_password_hash(password, method='pbkdf2:sha256')
+            db.session.commit()
+            flash('Your password has been updated. Please log in.', 'success')
+            return redirect(url_for('login'))
+    return render_template('reset_token.html', token=token)
+# -------------------- End Password Reset Routes --------------------_
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != "admin":
+            flash("You do not have permission to access this page.", "danger")
+            return redirect(url_for("unauthorized"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/unauthorized')
+def unauthorized():
+    return render_template('unauthorized.html'), 403
+
+# -------------------- Other Routes --------------------
+@app.route('/update-market-times', methods=['POST'])
+@login_required
+@admin_required
+def update_market_times():
+    start_time = request.form.get('start_time')
+    end_time = request.form.get('end_time')
+    day_start = request.form.get('day_start')
+    day_end = request.form.get('day_end')
+    
+    market_times = Admin.query.first()
+    if market_times:
+        market_times.start_time = start_time
+        market_times.end_time = end_time
+        market_times.day_start = day_start
+        market_times.day_end = day_end
+    else:
+        market_times = Admin(start_time=start_time, end_time=end_time,
+                           day_start=day_start, day_end=day_end)
+        db.session.add(market_times)
+    db.session.commit()
+    flash('Market times updated successfully!', 'success')
+    return redirect(url_for('admin'))
+# -------------------- Admin--------------------
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin():
+    users = Users.query.all()
+    market_times = Admin.query.first()
+    return render_template("admin.html", users=users, market_times=market_times)
+
+@app.route('/delete-user/<int:user_id>', methods=["POST"])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = Users.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash('User deleted successfully.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/change-role/<int:user_id>', methods=["POST"])
+@login_required
+@admin_required
+def change_role(user_id):
+    user = Users.query.get_or_404(user_id)
+    new_role = request.form.get("role")
+    if new_role in ["user", "admin"]:
+        user.role = new_role
+        db.session.commit()
+        flash('User role updated successfully.', 'success')
+    return redirect(url_for('admin'))
+
+def get_stock_price(symbol):
+    try:
+        last_trade = api.get_latest_trade(symbol)
+        return float(last_trade.price)
+    except Exception as e:
+        print(f"Error getting price for {symbol}: {e}")
+        return None
+# -------------------- Portfolio --------------------
+
+@app.route('/portfolio')
+@login_required
+def portfolio():
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+
+    holdings = {}
+    total_value = 0.0
+
+    # First pass: Calculate total shares and total cost for buy transactions only
+    for tx in user_transactions:
+        sid = tx.stock_id
+        if sid not in holdings:
+            holdings[sid] = {"shares": 0, "total_cost": 0.0, "total_bought": 0, "total_spent": 0.0}
+        
+        if tx.transaction_type == 'buy':
+            holdings[sid]["total_bought"] += tx.shares
+            holdings[sid]["total_spent"] += tx.shares * tx.price
+        
+        # Update current shares count
+        if tx.transaction_type == 'buy':
+            holdings[sid]["shares"] += tx.shares
+        else:
+            holdings[sid]["shares"] -= tx.shares
+
+    portfolio_holdings = []
+    for sid, data in holdings.items():
+        if data["shares"] > 0:  # Only process stocks we still own
+            stock = Stock.query.get(sid)
+            current_price = get_stock_price(stock.symbol)
+            
+            if current_price is None:  # If we can't get the current price, use the last known price
+                current_price = stock.initial_price
+            
+            # Calculate true average purchase price based on all buys
+            avg_price = data["total_spent"] / data["total_bought"] if data["total_bought"] > 0 else 0
+            current_value = data["shares"] * current_price
+            total_value += current_value
+
+            portfolio_holdings.append({
+                "symbol": stock.symbol,
+                "shares": data["shares"],
+                "avg_price": round(avg_price, 2),
+                "total_value": round(current_value, 2)
+            })
+
+    updated_balance = Users.query.get(current_user.id).balance
+    market_times = Admin.query.first()
+
+    portfolio_data = {
+        "total_value": round(total_value + updated_balance, 2),
+        "cash": round(updated_balance, 2),
+        "num_stocks": len(portfolio_holdings),
+        "total_shares": sum(h["shares"] for h in portfolio_holdings),
+        "holdings": portfolio_holdings,
+        "market_start_time": market_times.start_time.strftime("%H:%M:%S") if market_times else "N/A",
+        "market_end_time": market_times.end_time.strftime("%H:%M:%S") if market_times else "N/A",
+        "market_day_start": market_times.day_start if market_times else "N/A",
+        "market_day_end": market_times.day_end if market_times else "N/A"
+    }
+
+    return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    if request.method == 'POST':
+        fullname = request.form.get('fullname')
+        email = request.form.get('email')
+        user = Users.query.get(current_user.id)
+        user.fullname = fullname
+        user.email = email
+        db.session.commit()
+        flash('Profile updated successfully.', 'success')
+    return render_template('profile.html', title='Profile', user=current_user)
+# -------------------- Transactions --------------------
+
+@app.route('/transactions')
+@login_required
+def transactions():
+    txs = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).all()
+    transactions_list = []
+    for tx in txs:
+        stock = Stock.query.get(tx.stock_id)
+        transactions_list.append({
+            "symbol": stock.symbol,  # Updated to use symbol
+            "transaction_type": tx.transaction_type,
+            "shares": tx.shares,
+            "price": tx.price,
+            "transaction_date": tx.transaction_date
+        })
+    # Recalculate total account value from holdings.
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    holdings = {}
+    for tx in user_transactions:
+        sid = tx.stock_id
+        if sid not in holdings:
+            holdings[sid] = {"shares": 0, "total_cost": 0.0}
+        if tx.transaction_type == 'buy':
+            holdings[sid]["shares"] += tx.shares
+            holdings[sid]["total_cost"] += tx.shares * tx.price
+        elif tx.transaction_type == 'sell':
+            holdings[sid]["shares"] -= tx.shares
+            holdings[sid]["total_cost"] -= tx.shares * tx.price
+    total_value = 0.0
+    for sid, data in holdings.items():
+        if data["shares"] > 0:
+            avg_price = data["total_cost"] / data["shares"]
+            total_value += data["shares"] * avg_price
+    return render_template('transactions.html', title='Transactions', transactions=transactions_list, total_value=round(total_value, 2))
+
+@app.route('/add-funds', methods=['POST'])
+@login_required
+def add_funds():
+    try:
+        amount = float(request.form.get('amount'))
+    except ValueError:
+        flash('Invalid amount entered.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    if amount <= 0:
+        flash('Please enter a positive amount.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    current_user.balance += amount  # Update the user's balance
+    db.session.commit()
+
+    flash(f"Successfully added ${amount:,.2f} to your account.", "success")
+    return redirect(url_for('portfolio'))
+
+
+from flask import jsonify, request
+
+@app.route('/stocks')
+@login_required
+def stocks():
+    stocks_query = Stock.query.all()
+    stocks_list = []
+
+    for stock in stocks_query:
+        price = get_stock_price(stock.symbol)
+        if price is None:
+            continue
+        
+        stocks_list.append({
+            "id": stock.id,
+            "symbol": stock.symbol,
+            "name": stock.name,
+            "price": price
+        })
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(stocks_list)
+
+    return render_template('stocks.html', title='Stocks', stocks=stocks_list)
+
+
+@app.route('/buy-stock/<int:stock_id>', methods=['POST'])
+@login_required
+def buy_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    
+    try:
+        shares = int(request.form.get("shares"))
+    except (ValueError, TypeError):
+        flash("Invalid input. Please enter a valid number of shares.", "danger")
+        return redirect(url_for("stocks"))
+
+    if shares <= 0:
+        flash("You must buy at least one share.", "danger")
+        return redirect(url_for("stocks"))
+
+    # Get real-time price from Alpaca
+    current_price = get_stock_price(stock.symbol)
+    if current_price is None:
+        flash("Unable to get current stock price. Please try again.", "danger")
+        return redirect(url_for("stocks"))
+
+    total_cost = round(current_price * shares, 2)
+    user = Users.query.get(current_user.id)
+
+    if user.balance < total_cost:
+        return jsonify({"error": "Insufficient funds"}), 400
+
+    # Deduct the total cost from the user's balance
+    user.balance -= total_cost
+
+    # Create and add the transaction to the database
+    new_transaction = Transaction(
+        user_id=user.id,
+        stock_id=stock.id,
+        shares=shares,
+        price=current_price,  # Use the real-time price
+        transaction_type="buy"
+    )
+
+    db.session.add(new_transaction)
+    db.session.commit()
+
+    flash(f"Bought {shares} shares of {stock.symbol} at ${current_price:.2f} per share!", "success")
+    return jsonify({
+        "stock_name": stock.symbol,
+        "stock_price": current_price,
+        "shares": shares,
+        "total_cost": total_cost
+    })
+
+
+@app.route('/sell-stock/<int:stock_id>', methods=['POST'])
+@login_required
+def sell_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+
+    total_buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='buy').scalar() or 0
+    total_sells = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='sell').scalar() or 0
+    holdings = total_buys - total_sells
+
+    try:
+        shares = int(request.form.get('shares'))
+    except ValueError:
+        return jsonify({"error": "Invalid input. Enter a valid number of shares."}), 400
+
+    if shares <= 0:
+        return jsonify({"error": "Number of shares must be positive."}), 400
+
+    if shares > holdings:
+        return jsonify({"error": f"Insufficient shares. You own {holdings} shares."}), 400
+
+    price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+    total_value = round(price * shares, 2)
+
+    # Add the total value of the sold stock to the user's balance
+    current_user.balance += total_value
+
+    new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type='sell')
+
+    db.session.add(new_transaction)
+    db.session.commit()
+    return jsonify({
+        "stock_name": stock.symbol,  # Updated to use symbol
+        "stock_price": price,
+        "shares": shares,
+        "total_value": total_value
+    })
+
+
+@app.route('/create-stock', methods=["POST"])
+@login_required
+@admin_required
+def create_stock():
+    stock_name = request.form.get('stock_name')
+    stock_symbol = request.form.get('stock_symbol')  # New field for symbol
+    initial_price = request.form.get('initial_price')
+    new_stock = Stock(name=stock_name, symbol=stock_symbol, initial_price=initial_price)  # Updated to include symbol
+    db.session.add(new_stock)
+    db.session.commit()
+    flash('Stock created successfully!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/deposit-cash', methods=['POST'])
+@login_required
+def deposit_cash():
+    try:
+        amount = float(request.form.get('amount'))
+    except ValueError:
+        flash('Invalid amount entered.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    if amount <= 0:
+        flash('Please enter a positive amount.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    current_user.balance += amount  # Update the user's balance
+    db.session.commit()
+
+    flash(f"Successfully deposited ${amount:,.2f} to your account.", "success")
+    return redirect(url_for('portfolio'))
+
+
+@app.route('/withdraw-cash', methods=['POST'])
+@login_required
+def withdraw_cash():
+    try:
+        amount = float(request.form.get('amount'))
+    except ValueError:
+        flash('Invalid amount entered.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    if amount <= 0:
+        flash('Please enter a positive amount.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    if amount > current_user.balance:
+        flash('Insufficient balance to withdraw this amount.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    current_user.balance -= amount  # Deduct the amount from the user's balance
+    db.session.commit()
+
+    flash(f"Successfully withdrew ${amount:,.2f} from your account.", "success")
+    return redirect(url_for('portfolio'))
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0;">
+  <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">Transactions</h1>
+  {% if transactions %}
+    <div class="table-responsive">
+      <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color);">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Type</th>
+            <th>Shares</th>
+            <th>Price</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr>
+            <td>{{ tx.symbol }}</td>
+            <td>{{ tx.transaction_type }}</td>
+            <td>{{ tx.shares }}</td>
+            <td>{{ tx.price|currency }}</td>
+            <td>{{ tx.transaction_date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="text-center" style="margin-top: 20px; font-size: 1.6rem; color: var(--text-color);">
+      <h3>Total Account Value: {{ total_value|currency }}</h3>
+    </div>
+  {% else %}
+    <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">No transactions recorded yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

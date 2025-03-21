@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Portfolio{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0; position: relative;">
+  <!-- Market Times -->
+  <div style="position: absolute; top: 10px; left: 10px; font-size: 1.5rem; color: var(--text-color);">
+    Market Start: {{ portfolio_data.market_start_time }}<br>
+    Market Start Day: {{ portfolio_data.market_day_start }}
+  </div>
+  <div style="position: absolute; top: 10px; right: 10px; font-size: 1.5rem; color: var(--text-color);">
+    Market End: {{ portfolio_data.market_end_time }}<br>
+    Market End Day: {{ portfolio_data.market_day_end }}
+  </div>
+  
+  <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">My Portfolio</h1>
+  <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">A snapshot of your portfolio performance</p>
+
+  {% if portfolio_data %}
+    <section class="portfolio-overview" style="padding: 50px 0; background-color: var(--accent-color);">
+      <div class="container">
+        <div class="row text-center" style="font-size: 1.6rem;">
+          <div class="col-md-4" style="color: var(--text-color);">
+            <h2>Total Value</h2>
+            <p>{{ portfolio_data.total_value|currency }}</p>
+          </div>
+          <div class="col-md-4" style="color: var(--text-color);">
+            <h2>Account Balance</h2>
+            <p>{{ portfolio_data.cash|currency }}</p>
+          </div>
+          <div class="col-md-4" style="color: var(--text-color);">
+            <h2>Total Shares</h2>
+            <p>{{ portfolio_data.total_shares }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="portfolio-details" style="padding: 100px 0; background-color: var(--bg-color);">
+      <div class="container">
+        <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Portfolio Details</h2>
+        <div class="table-responsive">
+          <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color);">
+            <thead>
+              <tr>
+                <th>Stock</th>
+                <th>Shares</th>
+                <th>Average Price</th>
+                <th>Total Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for holding in portfolio_data.holdings %}
+              <tr>
+                <td>{{ holding.symbol }}</td>
+                <td>{{ holding.shares }}</td>
+                <td>{{ holding.avg_price|currency }}</td>
+                <td>{{ holding.total_value|currency }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="cash-management-section" style="padding: 50px 0; background-color: var(--bg-color);">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-6">
+            <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Deposit Cash</h2>
+            <form method="post" action="{{ url_for('deposit_cash') }}">
+              <div class="form-group">
+                <label for="deposit-amount" style="color: var(--text-color); font-size: 1.4rem;">Enter Amount</label>
+                <input type="number" step="0.01" class="form-control" id="deposit-amount" name="amount" required
+                       style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); font-size: 1.2rem;">
+              </div>
+              <button type="submit" class="btn btn-custom-primary btn-block" style="font-size: 1.4rem;">Deposit Cash</button>
+            </form>
+          </div>
+          <div class="col-md-6">
+            <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Withdraw Cash</h2>
+            <form method="post" action="{{ url_for('withdraw_cash') }}" onsubmit="return validateWithdrawal();">
+              <div class="form-group">
+                <label for="withdraw-amount" style="color: var(--text-color); font-size: 1.4rem;">Enter Amount</label>
+                <input type="number" step="0.01" class="form-control" id="withdraw-amount" name="amount" required
+                       style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); font-size: 1.2rem;">
+              </div>
+              <button type="submit" class="btn btn-custom-primary btn-block" style="font-size: 1.4rem;">Withdraw Cash</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+    <script>
+      function validateWithdrawal() {
+        const withdrawAmount = parseFloat(document.getElementById('withdraw-amount').value);
+        const accountBalance = {{ portfolio_data.cash }};
+        if (withdrawAmount > accountBalance) {
+          alert('You cannot withdraw more than your account balance.');
+          return false;
+        }
+        return true;
+      }
+    </script>
+  {% else %}
+    <section class="portfolio-empty" style="padding: 100px 0; background-color: var(--bg-color); text-align: center;">
+      <h2 style="color: var(--text-color); font-size: 2.5rem;">No Transactions Yet</h2>
+      <p style="color: var(--text-color); font-size: 1.4rem;">Your portfolio details will appear once you start trading.</p>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

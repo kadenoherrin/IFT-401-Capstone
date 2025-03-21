@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}About Equity Edge Stocks{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero" style='background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url({{ url_for("static", filename="logo.jpg") }}) center/cover no-repeat; height: 100vh; position: relative;'>
+  <div class="hero-content text-center" style="position: relative; z-index: 2; top: 50%; transform: translateY(-50%);">
+    <h1 style="color: var(--text-color); font-size: 4rem;">About Equity Edge Stocks</h1>
+    <p style="color: var(--text-color); font-size: 1.5rem;">Empowering Investors with Cutting-Edge Trading Insights</p>
+  </div>
+</section>
+
+<!-- Our Story Section (Image on Right) asdfasdf-->
+<section id="our-story" style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container" style="max-width: 800px; margin: 0 auto;">
+    <h2 style="color: var(--text-color); margin-bottom: 30px; font-size: 3rem; text-align: center;">Our Story</h2>
+    <div class="row align-items-center">
+      <div class="col-md-6" style="color: var(--text-color); font-size: 1.2rem; text-align: left;">
+        <p>
+          Equity Edge Stocks was founded with a vision to transform the trading landscape.
+          What began as a bold idea to empower investors with advanced tools and insights has evolved into a dynamic platform where expertise meets innovation.
+          Our journey is fueled by passion, persistence, and a commitment to excellence.
+        </p>
+        <p>
+          Over the years, we have refined our approach by integrating state-of-the-art technology and data-driven strategies,
+          staying ahead of market trends. Our dedicated team works tirelessly to provide real-time analytics and insights that empower investors.
+        </p>
+      </div>
+      <div class="col-md-6">
+        <img src="{{ url_for('static', filename='about1.jpg') }}" alt="Our Story Image" style="width: 100%; max-width: 600px; margin: 0 auto; display: block;">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Our Mission Section (Image on Left) -->
+<section id="our-mission" style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container" style="max-width: 800px; margin: 0 auto;">
+    <h2 style="color: var(--text-color); margin-bottom: 30px; font-size: 3rem; text-align: center;">Our Mission</h2>
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <img src="{{ url_for('static', filename='about2.jpg') }}" alt="Our Mission Image" style="width: 100%; max-width: 600px; margin: 0 auto; display: block;">
+      </div>
+      <div class="col-md-6" style="color: var(--text-color); font-size: 1.2rem; text-align: right;">
+        <p>
+          Our mission is to revolutionize the trading experience by delivering cutting-edge technology, in-depth analytics, and unparalleled support.
+          We empower every investor to make informed decisions in a rapidly evolving market.
+        </p>
+        <p>
+          By bridging the gap between advanced trading tools and everyday investors, we foster a more inclusive and dynamic financial environment.
+          Our commitment to user-friendly design ensures that our powerful tools are accessible to all.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Our Values Section (Image on Right) -->
+<section id="our-values" style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container" style="max-width: 800px; margin: 0 auto;">
+    <h2 style="color: var(--text-color); margin-bottom: 30px; font-size: 3rem; text-align: center;">Our Values</h2>
+    <div class="row align-items-center">
+      <div class="col-md-6" style="color: var(--text-color); font-size: 1.2rem; text-align: left;">
+        <p>
+          Integrity, Innovation, and Inclusivity are at the heart of Equity Edge Stocks.
+          We are dedicated to transparency, continuous improvement, and building a community where every investor can thrive.
+        </p>
+        <p>
+          We hold ourselves to the highest standards of professionalism and ethics.
+          Our proactive approach to market challenges ensures that our clients always have access to the best resources for success,
+          while our innovative spirit drives us to continuously enhance the trading experience.
+        </p>
+      </div>
+      <div class="col-md-6">
+        <img src="{{ url_for('static', filename='about3.jpg') }}" alt="Our Values Image" style="width: 100%; max-width: 600px; margin: 0 auto; display: block;">
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

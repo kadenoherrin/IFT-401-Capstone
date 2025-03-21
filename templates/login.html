@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row" style="margin-top: 50px;">
+    <div class="col-md-4 col-md-offset-4">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title text-center" style="color: var(--text-color);">Login</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('login') }}">
+            <div class="form-group">
+              <label for="username" style="color: var(--text-color);">Username</label>
+              <input type="text" class="form-control" id="username" name="username" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <div class="form-group">
+              <label for="password" style="color: var(--text-color);">Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="password" name="password" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default" onclick="togglePasswordVisibility('password')" style="background-color: var(--accent-color); border: none;">
+                    <i class="glyphicon glyphicon-eye-open" style="color: var(--text-color);"></i>
+                  </button>
+                </span>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-custom-primary btn-block">Login</button>
+          </form>
+          <br>
+          <p class="text-center" style="color: var(--text-color);">
+            <a href="{{ url_for('reset_request') }}" style="color: var(--text-color);">Forgot your password?</a>
+          </p>
+          <p class="text-center" style="color: var(--text-color);">
+            Don't have an account? <a href="{{ url_for('register') }}" style="color: var(--text-color);">Register here</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePasswordVisibility(id) {
+  var passwordField = document.getElementById(id);
+  if (passwordField.type === "password") {
+    passwordField.type = "text";
+  } else {
+    passwordField.type = "password";
+  }
+}
+</script>
+{% endblock %}

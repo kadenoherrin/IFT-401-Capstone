@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us{% endblock %}
+
+{% block content %}
+<section class="contact-section" style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container">
+    <div class="row">
+      <!-- Contact Form Column -->
+      <div class="col-md-6" style="color: var(--text-color);">
+        <h1 style="font-size: 3rem; margin-bottom: 20px;">Get In Touch</h1>
+        <p style="font-size: 1.2rem; margin-bottom: 30px;">
+          We’d love to hear from you! Please fill out the form and we’ll get back to you as soon as possible.
+        </p>
+        <form method="post" action="/contact">
+          <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+          </div>
+          <div class="mb-3">
+            <label for="subject" class="form-label">Subject</label>
+            <input type="text" class="form-control" id="subject" name="subject">
+          </div>
+          <div class="mb-3">
+            <label for="message" class="form-label">Message</label>
+            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+      </div>
+      <!-- Contact Information Column -->
+      <div class="col-md-6" style="color: var(--text-color);">
+        <h2 style="font-size: 2.5rem; margin-bottom: 20px;">Our Contact Information</h2>
+        <p style="font-size: 1.2rem;"><strong>Email:</strong> contact@equityedgestocks.com</p>
+        <p style="font-size: 1.2rem;"><strong>Phone:</strong> (123) 456-7890</p>
+        <p style="font-size: 1.2rem;"><strong>Address:</strong> 123 Main St, City, State, Zip</p>
+        <p style="font-size: 1.2rem;">Follow us on social media:</p>
+        <ul style="list-style: none; padding: 0; font-size: 1.2rem;">
+          <li><a href="#" style="color: var(--text-color); text-decoration: none;">Facebook</a></li>
+          <li><a href="#" style="color: var(--text-color); text-decoration: none;">Twitter</a></li>
+          <li><a href="#" style="color: var(--text-color); text-decoration: none;">LinkedIn</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

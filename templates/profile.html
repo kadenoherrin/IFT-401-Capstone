@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0;">
+  <h1 class="text-center" style="color: var(--text-color);">My Profile</h1>
+  <form method="post" action="{{ url_for('profile') }}">
+    <div class="form-group">
+      <label for="username" style="color: var(--text-color);">Username</label>
+      <input type="text" class="form-control" id="username" name="username" value="{{ current_user.username }}" required>
+    </div>
+    <div class="form-group">
+      <label for="email" style="color: var(--text-color);">Email</label>
+      <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+    </div>
+    <div class="form-group">
+      <label for="new_password" style="color: var(--text-color);">New Password (Optional)</label>
+      <input type="password" class="form-control" id="new_password" name="new_password">
+    </div>
+    <div class="form-group">
+      <label for="confirm_password" style="color: var(--text-color);">Confirm New Password</label>
+      <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+    </div>
+    <div class="form-group">
+      <label for="current_password" style="color: var(--text-color);">Current Password (Required to Confirm Changes)</label>
+      <input type="password" class="form-control" id="current_password" name="current_password" required>
+    </div>
+    <button type="submit" class="btn btn-custom-primary">Update Profile</button>
+  </form>
+</div>
+{% endblock %}

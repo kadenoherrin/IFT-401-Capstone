@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Pending Orders{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0;">
+  <h1 class="text-center" style="color: var(--text-color);">Pending Orders</h1>
+  {% if orders %}
+    <table class="table table-bordered" style="color: var(--text-color);">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Stock</th>
+          <th>Type</th>
+          <th>Shares</th>
+          <th>Price</th>
+          <th>Status</th>
+          <th>Placed At</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td>{{ order.id }}</td>
+          <td>{{ order.stock.name }}</td>
+          <td>{{ order.order_type }}</td>
+          <td>{{ order.shares }}</td>
+          <td>{{ order.price|currency }}</td>
+          <td>{{ order.status }}</td>
+          <td>{{ order.creation_time }}</td>
+          <td>
+            {% if order.status == 'pending' %}
+            <form method="post" action="{{ url_for('cancel_order', order_id=order.id) }}">
+              <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+            </form>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="text-center" style="color: var(--text-color);">No pending orders.</p>
+  {% endif %}
+</div>
+{% endblock %}

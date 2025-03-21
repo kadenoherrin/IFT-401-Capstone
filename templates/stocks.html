@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% block title %}Stocks{% endblock %}
+{% block content %}
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<section style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container">
+    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 40px;">Stocks</h1>
+    <p class="text-center" style="color: var(--text-color); font-size: 1.2rem;">
+      Available stocks that can be traded are displayed below.
+    </p>
+
+    <!-- Stock Search Bar -->
+    <div class="text-center" style="margin-bottom: 20px;">
+      <input type="text" id="stockSearch" class="form-control" placeholder="Search stocks..." 
+             onkeyup="searchStocks()" style="width: 50%; margin: 0 auto; background-color: var(--bg-color); 
+             color: var(--text-color); border: 1px solid var(--accent-color);">
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
+        <thead style="background-color: var(--bg-color) !important; color: var (--text-color) !important;">
+          <tr>
+            <th>Symbol</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="stockTableBody" style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
+          {% for stock in stocks %}
+          <tr>
+            <td>{{ stock.symbol }}</td> <!-- Updated to use symbol -->
+            <td>{{ stock.name }}</td>
+            <td id="price-{{ stock.id }}">${{ stock.price }}</td>
+            <td>
+              <button type="button" class="btn btn-success buy-btn" 
+                      data-stock-id="{{ stock.id }}" 
+                      data-stock-name="{{ stock.name }}"
+                      data-toggle="modal" data-target="#buyStockModal">
+                Buy
+              </button>
+              <button type="button" class="btn btn-warning sell-btn" 
+                      data-stock-id="{{ stock.id }}" 
+                      data-stock-name="{{ stock.name }}"
+                      data-toggle="modal" data-target="#sellStockModal">
+                Sell
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Buy Stock Modal -->
+<div class="modal fade" id="buyStockModal" tabindex="-1" role="dialog" aria-labelledby="buyStockModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
+      <div class="modal-header" style="background-color: var(--accent-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title" id="buyStockModalLabel">Buy Stock</h4>
+      </div>
+      <form method="post" id="buyStockForm">
+        <div class="modal-body">
+          <input type="hidden" id="buyStockId" name="stock_id">
+          <div class="form-group">
+            <label for="buy_shares" class="form-label">Number of Shares</label>
+            <input type="number" class="form-control" id="buy_shares" name="shares" required
+                   style="background-color: var(--bg-color); color: var (--text-color); border: 1px solid var(--accent-color);">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-custom-primary">Buy Stock</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Buy Stock Modal Setup
+    $('#buyStockModal').on('show.bs.modal', function(event) {
+      var button = $(event.relatedTarget);
+      var stockId = button.data('stock-id');
+      var stockName = button.data('stock-name').toUpperCase();
+      var modal = $(this);
+      var stockPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+
+      if (!stockId) {
+        console.error("Stock ID is missing!");
+        return;
+      }
+
+      // Clear the input field for the number of shares
+      $('#buy_shares').val('');
+
+      modal.find('.modal-title').text('Please enter shares');
+      modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId);
+
+      $('#buy_shares').off('input').on('input', function() {
+        var numberOfShares = parseInt(this.value) || 0;
+        if (numberOfShares > 0) {
+          var totalCost = (numberOfShares * stockPrice).toFixed(2);
+          modal.find('.modal-title').text(`Buy ${numberOfShares} shares of ${stockName} for $${totalCost}`);
+        } else {
+          modal.find('.modal-title').text('Please enter shares');
+        }
+      });
+    });
+
+    // Sell Stock Modal Setup
+    $('#sellStockModal').on('show.bs.modal', function(event) {
+      var button = $(event.relatedTarget);
+      var stockId = button.data('stock-id');
+      var stockName = button.data('stock-name').toUpperCase();
+      var modal = $(this);
+      var stockPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+
+      if (!stockId) {
+        console.error("Stock ID is missing!");
+        return;
+      }
+
+      // Clear the input field for the number of shares
+      $('#sell_shares').val('');
+
+      modal.find('.modal-title').text('Please enter shares');
+      modal.find('#sellStockForm').attr('action', '/sell-stock/' + stockId);
+
+      $('#sell_shares').off('input').on('input', function() {
+        var numberOfShares = parseInt(this.value) || 0;
+        if (numberOfShares > 0) {
+          var totalValue = (numberOfShares * stockPrice).toFixed(2);
+          modal.find('.modal-title').text(`Sell ${numberOfShares} shares of ${stockName} for $${totalValue}`);
+        } else {
+          modal.find('.modal-title').text('Please enter shares');
+        }
+      });
+    });
+  });
+
+  // Search function to filter stocks by name or symbol
+  function searchStocks() {
+    const searchInput = document.getElementById("stockSearch").value.toLowerCase();
+    const tableRows = document.querySelectorAll("#stockTableBody tr");
+
+    tableRows.forEach(row => {
+      const symbol = row.querySelector("td:nth-child(1)").innerText.toLowerCase();
+      const name = row.querySelector("td:nth-child(2)").innerText.toLowerCase();
+
+      if (symbol.includes(searchInput) || name.includes(searchInput)) {
+        row.style.display = ""; // Show row
+      } else {
+        row.style.display = "none"; // Hide row
+      }
+    });
+  }
+
+  // Update stock prices every 5 seconds
+  function updateStockPrices() {
+    fetch("{{ url_for('stocks') }}", { 
+        headers: { "X-Requested-With": "XMLHttpRequest" } 
+    })
+    .then(response => response.json())
+    .then(data => {
+        data.forEach(stock => {
+            let priceElement = document.getElementById(`price-${stock.id}`);
+            if (priceElement) {
+                // Format price with 2 decimal places
+                priceElement.innerText = `$${parseFloat(stock.price).toFixed(2)}`;
+            }
+        });
+    })
+    .catch(error => console.error("Error updating stock prices:", error));
+  }
+
+  // Initialize and start price updates
+  updateStockPrices();
+  setInterval(updateStockPrices, 5000);
+</script>
+
+<!-- Sell Stock Modal -->
+<div class="modal fade" id="sellStockModal" tabindex="-1" role="dialog" aria-labelledby="sellStockModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
+      <div class="modal-header" style="background-color: var(--accent-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
+      </div>
+      <form method="post" id="sellStockForm">
+        <div class="modal-body">
+          <input type="hidden" id="sellStockId" name="stock_id">
+          <div class="form-group">
+            <label for="sell_shares" class="form-label">Number of Shares</label>
+            <input type="number" class="form-control" id="sell_shares" name="shares" required
+                   style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-custom-primary">Sell Stock</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Buy Stock Modal Setup
+  $('#buyStockModal').on('show.bs.modal', function(event) {
+    var button = $(event.relatedTarget);
+    var stockId = button.data('stock-id');
+    var stockName = button.data('stock-name');
+    var modal = $(this);
+    modal.find('.modal-title').text('Buy ' + stockName);
+    modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId + '/');
+  });
+
+  // Sell Stock Modal Setup
+  $('#sellStockModal').on('show.bs.modal', function(event) {
+    var button = $(event.relatedTarget);
+    var stockId = button.data('stock-id');
+    var stockName = button.data('stock-name');
+    var modal = $(this);
+
+    if (!stockId) {
+        console.error("Stock ID is missing!");
+        return;
+    }
+
+    modal.find('.modal-title').text('Sell ' + stockName);
+    modal.find('#sellStockForm').attr('action', '/sell-stock/' + stockId);
+    modal.find('#sellStockId').val(stockId);
+});
+
+  // Confirmation popup for Buy Stock
+  $('#buyStockForm').on('submit', function(event) {
+    event.preventDefault(); // Prevent default form submission
+    const form = $(this);
+    const stockId = $('#buyStockId').val(); // Get stock ID from hidden input
+    const shares = $('#buy_shares').val();
+
+    $.ajax({
+      url: form.attr('action'),
+      type: 'POST',
+      data: form.serialize(),
+      success: function(response) {
+        const { stock_name, stock_price, shares, total_cost } = response;
+        if (confirm(`Transaction confirmed! You bought ${shares} shares of ${stock_name.toUpperCase()} for $${total_cost.toFixed(2)}.`)) {
+          window.location.href = "{{ url_for('portfolio') }}"; // Redirect to portfolio page
+        }
+      },
+      error: function(xhr) {
+        if (xhr.status === 400) { // Handle insufficient balance error
+          alert('Insufficient funds! Please check your balance and try again.');
+        } else {
+          alert('An error occurred while processing your request.');
+        }
+      }
+    });
+  });
+
+  // Confirmation popup for Sell Stock
+  $('#sellStockForm').on('submit', function(event) {
+    event.preventDefault(); // Prevent default form submission
+    const form = $(this);
+    const stockId = $('#sellStockId').val(); // Get stock ID from hidden input
+    const shares = $('#sell_shares').val();
+
+    $.ajax({
+      url: form.attr('action'),
+      type: 'POST',
+      data: form.serialize(),
+      success: function(response) {
+        const { stock_name, stock_price, shares, total_value } = response;
+        if (confirm(`Transaction confirmed! You sold ${shares} shares of ${stock_name.toUpperCase()} for $${total_value}.`)) {
+          window.location.href = "{{ url_for('portfolio') }}"; // Redirect to portfolio page
+        }
+      },
+      error: function(xhr) {
+        if (xhr.status === 400) { // Handle insufficient shares error
+          alert('Insufficient shares! Please check your holdings and try again.');
+        } else {
+          alert('An error occurred while processing your request.');
+        }
+      }
+    });
+  });
+
+  // Update stock prices every 5 seconds
+  function updateStockPrices() {
+    fetch("{{ url_for('stocks') }}", { 
+        headers: { "X-Requested-With": "XMLHttpRequest" } 
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("HTTP error! Status: " + response.status);
+        }
+        return response.json(); // Convert response to JSON
+    })
+    .then(data => {
+        console.log("Stock Data Received:", data); // Debugging output
+        data.forEach(stock => {
+            let priceElement = document.getElementById(`price-${stock.id}`);
+            if (priceElement) {
+                priceElement.innerText = `$${stock.price.toFixed(2)}`;
+            }
+        });
+    })
+    .catch(error => console.error("Error updating stock prices:", error));
+}
+
+// Call the function every 5 seconds to refresh prices
+setInterval(updateStockPrices, 5000);
+
+</script>
+
+{% endblock %}

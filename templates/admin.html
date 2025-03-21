@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row" style="margin-top: 50px;">
+    <div class="col-md-12">
+      <h1 class="text-center" style="color: var(--text-color);">Admin Panel</h1>
+      <p class="text-center" style="color: var(--text-color);">Create stocks or manage users here.</p>
+    </div>
+  </div>
+
+  <!-- Manage Users Panel -->
+  <div class="row" style="margin-top: 30px;">
+    <div class="col-md-8 col-md-offset-2">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Manage Users</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <table class="table table-striped custom-table" style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
+            <thead class="custom-thead" style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
+              <tr style="background-color: var(--bg-color) !important;">
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
+              {% for user in users %}
+              <tr style="background-color: var(--bg-color) !important;">
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.role }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                  </form>
+                  <form method="post" action="{{ url_for('change_role', user_id=user.id) }}" style="display:inline;">
+                    <select name="role" onchange="this.form.submit()" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                      <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                      <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Market Times and Create New Stock Panels -->
+  <div class="row" style="margin-top: 30px; margin-bottom: 50px;">
+    <div class="col-md-6">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Market Times</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('update_market_times') }}">
+            <div class="form-group">
+              <label for="start_time" style="color: var(--text-color);">Start Time</label>
+              <select id="start_time" name="start_time" class="form-control" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                {% for hour in range(0, 24) %}
+                  {% for minute in ['00', '30'] %}
+                    <option value="{{ '%02d:%s:00' % (hour, minute) }}" {% if market_times and market_times.start_time.strftime('%H:%M:%S') == '%02d:%s:00' % (hour, minute) %}selected{% endif %}>
+                      {{ '%02d:%s' % (hour, minute) }}
+                    </option>
+                  {% endfor %}
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="end_time" style="color: var(--text-color);">End Time</label>
+              <select id="end_time" name="end_time" class="form-control" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                {% for hour in range(0, 24) %}
+                  {% for minute in ['00', '30'] %}
+                    <option value="{{ '%02d:%s:00' % (hour, minute) }}" {% if market_times and market_times.end_time.strftime('%H:%M:%S') == '%02d:%s:00' % (hour, minute) %}selected{% endif %}>
+                      {{ '%02d:%s' % (hour, minute) }}
+                    </option>
+                  {% endfor %}
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="day_start" style="color: var(--text-color);">Start Day</label>
+              <select id="day_start" name="day_start" class="form-control" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                  <option value="{{ day }}" {% if market_times and market_times.day_start == day %}selected{% endif %}>{{ day }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="day_end" style="color: var(--text-color);">End Day</label>
+              <select id="day_end" name="day_end" class="form-control" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                  <option value="{{ day }}" {% if market_times and market_times.day_end == day %}selected{% endif %}>{{ day }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-custom-primary btn-block">Update Market Times</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Create New Stock</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('create_stock') }}">
+            <div class="form-group">
+              <label for="stock_name" style="color: var(--text-color);">Stock Name</label>
+              <input type="text" class="form-control" id="stock_name" name="stock_name" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <div class="form-group">
+              <label for="stock_symbol" style="color: var(--text-color);">Stock Symbol</label>
+              <input type="text" class="form-control" id="stock_symbol" name="stock_symbol" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <div class="form-group">
+              <label for="initial_price" style="color: var(--text-color);">Initial Price</label>
+              <input type="number" class="form-control" id="initial_price" name="initial_price" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <button type="submit" class="btn btn-custom-primary btn-block">Create Stock</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Equity Edge Stocks{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body, h1, h2, h3, h4, h5, h6, p, a, button, input, label {
+      font-family: 'Roboto', sans-serif;
+    }
+  </style>
+</head>
+<body style="padding-bottom: 70px;">
+
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-default" style="border: none; background-color: var(--bg-color);">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <a class="navbar-brand" href="{{ url_for('home') }}">
+          <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Logo" style="max-height: 50px;">
+        </a>
+      </div>
+      <div class="navbar-collapse" style="position: relative;">
+        <ul class="nav navbar-nav">
+          <li><a href="{{ url_for('home') }}" style="color: var(--text-color);">Home</a></li>
+          <li><a href="{{ url_for('about') }}" style="color: var(--text-color);">About</a></li>
+          <li><a href="{{ url_for('contact') }}" style="color: var(--text-color);">Contact</a></li>
+          <li><a href="{{ url_for('portfolio') }}" style="color: var(--text-color);">Portfolio</a></li>
+          <li><a href="{{ url_for('transactions') }}" style="color: var(--text-color);">Transactions</a></li>
+          <li><a href="{{ url_for('stocks') }}" style="color: var(--text-color);">Stocks</a></li>
+          {% if current_user.is_authenticated and current_user.role == "admin" %}
+            <li><a href="{{ url_for('admin') }}" style="color: var(--text-color);">Admin</a></li>
+          {% endif %}
+        </ul>
+        <div id="clock-container" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px;">
+          <span id="weekday" style="font-size: 1.5rem; font-weight: bold; color: var(--text-color);"></span>
+          <span id="clock" style="font-size: 2.5rem; font-weight: bold; color: var(--text-color);"></span>
+          <span id="date" style="font-size: 1.5rem; font-weight: bold; color: var(--text-color);"></span>
+        </div>
+        <ul class="nav navbar-nav navbar-right">
+          {% if current_user.is_authenticated %}
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown" style="color: var(--text-color);">
+                {{ current_user.username }} <b class="caret"></b>
+              </a>
+              <ul class="dropdown-menu" style="background-color: var(--bg-color);">
+                <li><a href="{{ url_for('profile') }}" style="color: var(--text-color);">Profile</a></li>
+                <li class="divider"></li>
+                <li><a href="{{ url_for('logout') }}" style="color: var(--text-color);">Logout</a></li>
+              </ul>
+            </li>
+          {% else %}
+            <li><a href="{{ url_for('login') }}" style="color: var(--text-color);">Login</a></li>
+            <li><a href="{{ url_for('register') }}" style="color: var(--text-color);">Register</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+  <footer style="background-color: var(--accent-color); color: var(--text-color); text-align: center; padding: 20px 0; position: fixed; bottom: 0; width: 100%;">
+    <div class="container">
+      <p>&copy; {{ current_year or '2025' }} Equity Edge Stocks. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <script>
+    function updateClock() {
+      const optionsTime = { timeZone: 'America/Phoenix', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+      const optionsDate = { timeZone: 'America/Phoenix', weekday: 'long', month: '2-digit', day: '2-digit' };
+      const now = new Date();
+
+      const time = now.toLocaleTimeString('en-US', optionsTime);
+      const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const date = now.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
+
+      document.getElementById('clock').textContent = time;
+      document.getElementById('weekday').textContent = weekday;
+      document.getElementById('date').textContent = date;
+    }
+    setInterval(updateClock, 1000);
+    updateClock(); // Initialize clock immediately
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

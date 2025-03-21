@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Reset Password{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="row" style="margin-top: 50px;">
+    <div class="col-md-6 col-md-offset-3">
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title text-center">Reset Your Password</h3>
+        </div>
+        <div class="panel-body">
+          <form method="post" action="{{ url_for('reset_request') }}">
+            <div class="form-group">
+              <label for="email">Enter your email address</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <br>
+            <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

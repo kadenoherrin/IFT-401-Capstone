@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Stock Details{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0;">
+  <h1 style="color: var(--text-color);">{{ stock.name }} Details</h1>
+  <p style="color: var(--text-color);">Current Price: {{ current_price|currency }}</p>
+  <!-- Add any additional details or charts here -->
+  <a href="{{ url_for('buy_stock', stock_id=stock.id) }}" class="btn btn-custom-primary">Buy</a>
+  <a href="{{ url_for('sell_stock', stock_id=stock.id) }}" class="btn btn-custom-secondary">Sell</a>
+</div>
+{% endblock %}
