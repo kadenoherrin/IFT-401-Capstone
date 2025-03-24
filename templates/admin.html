@@ -111,6 +111,7 @@
       </div>
     </div>
 
+    <!-- Move Create New Stock panel here -->
     <div class="col-md-6">
       <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
         <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
@@ -132,6 +133,66 @@
             </div>
             <button type="submit" class="btn btn-custom-primary btn-block">Create Stock</button>
           </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fluctuation and Update Stock Prices in new row -->
+  <div class="row" style="margin-top: 30px; margin-bottom: 50px;">
+    <div class="col-md-6">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Market Fluctuation</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('update_fluctuation') }}">
+            <div class="form-group">
+              <label for="fluctuation" style="color: var(--text-color);">Stock Price Fluctuation Percentage</label>
+              <input type="number" step="0.01" id="fluctuation" name="fluctuation" class="form-control"
+                     value="{{ market_times.fluctuation if market_times and market_times.fluctuation is not none else 0.0 }}"
+                     required
+                     style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+              <small class="text-muted" style="color: var(--text-color);">Enter the maximum percentage that stock prices can fluctuate up or down.</small>
+            </div>
+            <button type="submit" class="btn btn-custom-primary btn-block">Update Fluctuation</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Update Stock Prices</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color);">
+            <thead>
+              <tr>
+                <th>Stock Name</th>
+                <th>Symbol</th>
+                <th>Current Price</th>
+                <th>New Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for stock in stocks %}
+              <tr>
+                <td>{{ stock.name }}</td>
+                <td>{{ stock.symbol }}</td>
+                <td>${{ stock.initial_price }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('update_stock_price', stock_id=stock.id) }}" style="display: flex; gap: 5px;">
+                    <input type="number" step="0.01" name="new_price" class="form-control" required
+                           style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); width: 100px;">
+                    <button type="submit" class="btn btn-custom-primary">Update</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

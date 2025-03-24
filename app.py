@@ -7,7 +7,9 @@ import random
 from itsdangerous import URLSafeTimedSerializer
 import os
 from dotenv import load_dotenv
-import alpaca_trade_api as tradeapi
+import threading
+import time
+from datetime import datetime, date
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -41,6 +43,7 @@ class Stock(db.Model):
     name = db.Column(db.String(100), nullable=False)  # Keep for descriptive purposes
     symbol = db.Column(db.String(10), unique=True, nullable=False)  # New column for stock symbol
     initial_price = db.Column(db.Float, nullable=False)
+    live_price = db.Column(db.Float, nullable=False)  # New column for live price
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'
@@ -59,14 +62,35 @@ class Admin(db.Model):
     end_time = db.Column(db.Time, nullable=False)
     day_start = db.Column(db.String(10), nullable=False, default='Monday')
     day_end = db.Column(db.String(10), nullable=False, default='Friday')
+    fluctuation = db.Column(db.Float, nullable=False, default=0.0)  # New column for fluctuation percentage
 
 with app.app_context():
     db.create_all()
     if not Admin.query.first():
-        # Initialize default market times if not present
+        # Initialize default market times and fluctuation if not present
         db.session.add(Admin(start_time="09:00:00", end_time="16:00:00", 
-                           day_start="Monday", day_end="Friday"))
+                             day_start="Monday", day_end="Friday", fluctuation=0.0))
         db.session.commit()
+    # Initialize live_price for existing stocks if not set
+    for stock in Stock.query.all():
+        if stock.live_price is None:
+            stock.live_price = stock.initial_price
+    db.session.commit()
+
+# Function to fluctuate stock prices
+def fluctuate_stock_prices():
+    while True:
+        with app.app_context():
+            fluctuation = Admin.query.first().fluctuation if Admin.query.first() else 0.0
+            stocks = Stock.query.all()
+            for stock in stocks:
+                change_percent = random.uniform(-fluctuation, fluctuation) / 100
+                stock.live_price = max(0.01, stock.initial_price * (1 + change_percent))  # Calculate live price based on initial price
+            db.session.commit()
+        time.sleep(3)  # Adjust prices every 3 seconds
+
+# Start the fluctuation in a separate thread
+threading.Thread(target=fluctuate_stock_prices, daemon=True).start()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -95,13 +119,6 @@ def currency_format(value):
 
 # Load environment variables
 load_dotenv()
-
-# Initialize Alpaca API
-api = tradeapi.REST(
-    os.getenv('ALPACA_API_KEY'),
-    os.getenv('ALPACA_SECRET_KEY'),
-    os.getenv('ALPACA_API_URL')
-)
 
 # -------------------- Routes --------------------
 @app.route('/register', methods=['GET', 'POST'])
@@ -222,7 +239,12 @@ def update_market_times():
     end_time = request.form.get('end_time')
     day_start = request.form.get('day_start')
     day_end = request.form.get('day_end')
-    
+
+    # Validate inputs
+    if not start_time or not end_time or not day_start or not day_end:
+        flash('All fields are required. Please fill out the form completely.', 'danger')
+        return redirect(url_for('admin'))
+
     market_times = Admin.query.first()
     if market_times:
         market_times.start_time = start_time
@@ -230,12 +252,48 @@ def update_market_times():
         market_times.day_start = day_start
         market_times.day_end = day_end
     else:
-        market_times = Admin(start_time=start_time, end_time=end_time,
-                           day_start=day_start, day_end=day_end)
+        market_times = Admin(
+            start_time=start_time,
+            end_time=end_time,
+            day_start=day_start,
+            day_end=day_end
+        )
         db.session.add(market_times)
     db.session.commit()
     flash('Market times updated successfully!', 'success')
     return redirect(url_for('admin'))
+
+@app.route('/update-fluctuation', methods=['POST'])
+@login_required
+@admin_required
+def update_fluctuation():
+    fluctuation = request.form.get('fluctuation')
+
+    # Validate input
+    try:
+        fluctuation = float(fluctuation)
+        if fluctuation < 0:
+            raise ValueError("Fluctuation cannot be negative.")
+    except ValueError:
+        flash('Invalid fluctuation value. Please enter a valid non-negative number.', 'danger')
+        return redirect(url_for('admin'))
+
+    market_times = Admin.query.first()
+    if market_times:
+        market_times.fluctuation = fluctuation
+    else:
+        market_times = Admin(
+            start_time="09:00:00",
+            end_time="16:00:00",
+            day_start="Monday",
+            day_end="Friday",
+            fluctuation=fluctuation
+        )
+        db.session.add(market_times)
+    db.session.commit()
+    flash('Fluctuation percentage updated successfully!', 'success')
+    return redirect(url_for('admin'))
+
 # -------------------- Admin--------------------
 
 @app.route('/admin')
@@ -244,7 +302,8 @@ def update_market_times():
 def admin():
     users = Users.query.all()
     market_times = Admin.query.first()
-    return render_template("admin.html", users=users, market_times=market_times)
+    stocks = Stock.query.all()  # Fetch all stocks
+    return render_template("admin.html", users=users, market_times=market_times, stocks=stocks)
 
 @app.route('/delete-user/<int:user_id>', methods=["POST"])
 @login_required
@@ -268,15 +327,7 @@ def change_role(user_id):
         flash('User role updated successfully.', 'success')
     return redirect(url_for('admin'))
 
-def get_stock_price(symbol):
-    try:
-        last_trade = api.get_latest_trade(symbol)
-        return float(last_trade.price)
-    except Exception as e:
-        print(f"Error getting price for {symbol}: {e}")
-        return None
 # -------------------- Portfolio --------------------
-
 @app.route('/portfolio')
 @login_required
 def portfolio():
@@ -305,10 +356,7 @@ def portfolio():
     for sid, data in holdings.items():
         if data["shares"] > 0:  # Only process stocks we still own
             stock = Stock.query.get(sid)
-            current_price = get_stock_price(stock.symbol)
-            
-            if current_price is None:  # If we can't get the current price, use the last known price
-                current_price = stock.initial_price
+            current_price = stock.live_price  # Use live price
             
             # Calculate true average purchase price based on all buys
             avg_price = data["total_spent"] / data["total_bought"] if data["total_bought"] > 0 else 0
@@ -409,33 +457,102 @@ def add_funds():
 
 from flask import jsonify, request
 
+def is_us_holiday():
+    today = date.today()
+    holidays = {
+        # Format: date(YYYY, MM, DD): "Holiday Name"
+        date(today.year, 1, 1): "New Year's Day",
+        date(today.year, 1, 17): "Martin Luther King Jr. Day",  # Third Monday in January
+        date(today.year, 2, 21): "Presidents Day",  # Third Monday in February
+        date(today.year, 5, 29): "Memorial Day",  # Last Monday in May
+        date(today.year, 6, 19): "Juneteenth",
+        date(today.year, 7, 4): "Independence Day",
+        date(today.year, 9, 4): "Labor Day",  # First Monday in September
+        date(today.year, 11, 23): "Thanksgiving Day",  # Fourth Thursday in November
+        date(today.year, 12, 25): "Christmas Day"
+    }
+    return holidays.get(today)
+
 @app.route('/stocks')
 @login_required
 def stocks():
     stocks_query = Stock.query.all()
     stocks_list = []
+    market_times = Admin.query.first()
+    holiday = is_us_holiday()  # Get holiday information
 
     for stock in stocks_query:
-        price = get_stock_price(stock.symbol)
-        if price is None:
-            continue
-        
         stocks_list.append({
             "id": stock.id,
             "symbol": stock.symbol,
             "name": stock.name,
-            "price": price
+            "price": stock.live_price
         })
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify(stocks_list)
 
-    return render_template('stocks.html', title='Stocks', stocks=stocks_list)
+    portfolio_data = {
+        "market_start_time": market_times.start_time.strftime("%H:%M:%S") if market_times else "09:00:00",
+        "market_end_time": market_times.end_time.strftime("%H:%M:%S") if market_times else "16:00:00",
+        "market_day_start": market_times.day_start if market_times else "Monday",
+        "market_day_end": market_times.day_end if market_times else "Friday",
+        "holiday": holiday  # Add holiday information to portfolio_data
+    }
 
+    return render_template('stocks.html', title='Stocks', stocks=stocks_list, portfolio_data=portfolio_data)
+
+def is_market_open():
+    now = datetime.now()
+    current_day = now.strftime('%A')
+    current_time = now.strftime('%H:%M:%S')
+    
+    market_times = Admin.query.first()
+    if not market_times:
+        print("No market times found")
+        return False
+
+    # Debug logging
+    print(f"Current day: {current_day}, time: {current_time}")
+    print(f"Market days: {market_times.day_start} to {market_times.day_end}")
+    print(f"Market hours: {market_times.start_time} to {market_times.end_time}")
+
+    days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    current_day_index = days.index(current_day)
+    start_day_index = days.index(market_times.day_start)
+    end_day_index = days.index(market_times.day_end)
+
+    # Check if the current day is within market days
+    day_is_valid = False
+    if start_day_index <= end_day_index:
+        day_is_valid = start_day_index <= current_day_index <= end_day_index
+    else:  # Market crosses Sunday (e.g., Thurs to Mon)
+        day_is_valid = current_day_index >= start_day_index or current_day_index <= end_day_index
+
+    if not day_is_valid:
+        print("Market is closed - not a trading day")
+        return False
+
+    # Convert times to comparable format
+    market_start = market_times.start_time.strftime('%H:%M:%S')
+    market_end = market_times.end_time.strftime('%H:%M:%S')
+
+    # Check if current time is within market hours
+    time_is_valid = False
+    if market_start <= market_end:
+        time_is_valid = market_start <= current_time <= market_end
+    else:  # Market crosses midnight
+        time_is_valid = current_time >= market_start or current_time <= market_end
+
+    print(f"Market is {'open' if time_is_valid else 'closed'} - time check")
+    return time_is_valid
 
 @app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
+    if not is_market_open():
+        return jsonify({"error": "Market is currently closed"}), 400
+        
     stock = Stock.query.get_or_404(stock_id)
     
     try:
@@ -448,12 +565,7 @@ def buy_stock(stock_id):
         flash("You must buy at least one share.", "danger")
         return redirect(url_for("stocks"))
 
-    # Get real-time price from Alpaca
-    current_price = get_stock_price(stock.symbol)
-    if current_price is None:
-        flash("Unable to get current stock price. Please try again.", "danger")
-        return redirect(url_for("stocks"))
-
+    current_price = stock.live_price  # Use live price
     total_cost = round(current_price * shares, 2)
     user = Users.query.get(current_user.id)
 
@@ -468,7 +580,7 @@ def buy_stock(stock_id):
         user_id=user.id,
         stock_id=stock.id,
         shares=shares,
-        price=current_price,  # Use the real-time price
+        price=current_price,  # Use the live price
         transaction_type="buy"
     )
 
@@ -504,7 +616,7 @@ def sell_stock(stock_id):
     if shares > holdings:
         return jsonify({"error": f"Insufficient shares. You own {holdings} shares."}), 400
 
-    price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+    price = stock.live_price  # Use live price
     total_value = round(price * shares, 2)
 
     # Add the total value of the sold stock to the user's balance
@@ -529,7 +641,7 @@ def create_stock():
     stock_name = request.form.get('stock_name')
     stock_symbol = request.form.get('stock_symbol')  # New field for symbol
     initial_price = request.form.get('initial_price')
-    new_stock = Stock(name=stock_name, symbol=stock_symbol, initial_price=initial_price)  # Updated to include symbol
+    new_stock = Stock(name=stock_name, symbol=stock_symbol, initial_price=initial_price, live_price=initial_price)  # Updated to include symbol and live_price
     db.session.add(new_stock)
     db.session.commit()
     flash('Stock created successfully!', 'success')
@@ -575,8 +687,25 @@ def withdraw_cash():
     current_user.balance -= amount  # Deduct the amount from the user's balance
     db.session.commit()
 
-    flash(f"Successfully withdrew ${amount:,.2f} from your account.", "success")
+    flash(f"Successfully withdrew ${amount:,.2f} from your account.", 'success')
     return redirect(url_for('portfolio'))
+@app.route('/update-stock-price/<int:stock_id>', methods=['POST'])
+@admin_required
+def update_stock_price(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    try:
+        new_price = float(request.form.get('new_price'))
+        if new_price <= 0:
+            flash('Price must be greater than zero.', 'danger')
+            return redirect(url_for('admin'))
+    except ValueError:
+        flash('Invalid price entered.', 'danger')
+        return redirect(url_for('admin'))
+
+    stock.initial_price = new_price
+    db.session.commit()
+    flash(f'Price for {stock.name} ({stock.symbol}) updated to ${new_price:.2f}.', 'success')
+    return redirect(url_for('admin'))
 
 if __name__ == '__main__':
     app.run(debug=True)
