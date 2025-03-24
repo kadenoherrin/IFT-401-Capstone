@@ -90,16 +90,6 @@
       </div>
     </section>
     <script>
-      function validateWithdrawal() {
-        const withdrawAmount = parseFloat(document.getElementById('withdraw-amount').value);
-        const accountBalance = {{ portfolio_data.cash }};
-        if (withdrawAmount > accountBalance) {
-          alert('You cannot withdraw more than your account balance.');
-          return false;
-        }
-        return true;
-      }
-
       function showDepositConfirmation() {
         const depositAmount = parseFloat(document.getElementById('deposit-amount').value);
         if (depositAmount > 0) {
@@ -121,7 +111,6 @@
         return false;
       }
 
-      // Function to update portfolio values
       function updatePortfolioValues() {
         fetch("{{ url_for('stocks') }}", {
           headers: { "X-Requested-With": "XMLHttpRequest" }
@@ -144,14 +133,13 @@
         .catch(error => console.error("Error updating portfolio values:", error));
       }
 
-      // Update values every 5 seconds
       updatePortfolioValues();
       setInterval(updatePortfolioValues, 5000);
     </script>
   {% else %}
     <section class="portfolio-empty" style="padding: 100px 0; background-color: var(--bg-color); text-align: center;">
       <h2 style="color: var(--text-color); font-size: 2.5rem;">No Transactions Yet</h2>
-      <p style="color: var (--text-color); font-size: 1.4rem;">Your portfolio details will appear once you start trading.</p>
+      <p style="color: var(--text-color); font-size: 1.4rem;">Your portfolio details will appear once you start trading.</p>
     </section>
   {% endif %}
 </div>
