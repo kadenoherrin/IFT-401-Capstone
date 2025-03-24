@@ -4,8 +4,16 @@
 <div class="container" style="padding: 100px 0;">
   <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">Transactions</h1>
   {% if transactions %}
+    <div class="text-center" style="margin-bottom: 20px;">
+      <label for="transaction-filter" style="font-size: 1.4rem; color: var(--text-color);">Filter by Type:</label>
+      <select id="transaction-filter" class="form-select" style="display: inline-block; width: auto; font-size: 1.4rem; background-color: black; color: var(--text-color);">
+        <option value="all">All</option>
+        <option value="buy">Buy</option>
+        <option value="sell">Sell</option>
+      </select>
+    </div>
     <div class="table-responsive">
-      <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color);">
+      <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color); background-color: black;">
         <thead>
           <tr>
             <th>Stock</th>
@@ -15,11 +23,11 @@
             <th>Date</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="transaction-table-body">
           {% for tx in transactions %}
-          <tr>
+          <tr data-type="{{ tx.transaction_type }}">
             <td>{{ tx.symbol }}</td>
-            <td>{{ tx.transaction_type }}</td>
+            <td>{{ tx.transaction_type|capitalize }}</td>
             <td>{{ tx.shares }}</td>
             <td>{{ tx.price|currency }}</td>
             <td>{{ tx.transaction_date }}</td>
@@ -35,4 +43,17 @@
     <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">No transactions recorded yet.</p>
   {% endif %}
 </div>
+<script>
+  document.getElementById('transaction-filter').addEventListener('change', function () {
+    const filter = this.value;
+    const rows = document.querySelectorAll('#transaction-table-body tr');
+    rows.forEach(row => {
+      if (filter === 'all' || row.dataset.type === filter) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+</script>
 {% endblock %}
