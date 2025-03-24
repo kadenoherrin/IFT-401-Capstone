@@ -4,9 +4,6 @@
 <div class="container" style="padding: 100px 0;">
   <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">Transactions</h1>
   {% if transactions %}
-    <div class="text-center" style="margin-bottom: 20px; font-size: 1.6rem; color: var(--text-color);">
-      <h3>Total Account Value: {{ total_value|currency }}</h3>
-    </div>
     <div class="text-center" style="margin-bottom: 20px;">
       <label for="transaction-filter" style="font-size: 1.4rem; color: var(--text-color);">Filter by Type:</label>
       <select id="transaction-filter" class="form-select" style="display: inline-block; width: auto; font-size: 1.4rem; background-color: black; color: var(--text-color);">
