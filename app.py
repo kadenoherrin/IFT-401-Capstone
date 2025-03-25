@@ -37,7 +37,7 @@ class Users(UserMixin, db.Model):
     balance = db.Column(db.Float, default=0.0)  
 
 
-class Stock(db.Model):
+class Stock(db.Model):  # Stock Database
     __tablename__ = 'stocks'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)  # Keep for descriptive purposes
