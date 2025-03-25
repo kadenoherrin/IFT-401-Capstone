@@ -14,7 +14,7 @@ import pymysql
 import time
 import sqlalchemy.exc
 
-load_dotenv()
+#load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('SQL_USERNAME')}:{os.getenv('SQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}/{os.getenv('SQL_DATABASE')}"
