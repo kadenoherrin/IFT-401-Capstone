@@ -1,13 +1,12 @@
-version: "3.8"
 services:
   web:
-    container_name: captsone-web
+    container_name: capstone-web
     image: ghcr.io/omegawaffle/ift-401-capstone:latest
     ports:
       - "5000:5000"
     environment:
       - SQL_HOST=${SQL_HOST}
-      - SQL_USER=${SQL_USER}
+      - SQL_USERNAME=${SQL_USERNAME}
       - SQL_PASSWORD=${SQL_PASSWORD}
       - SQL_DATABASE=${SQL_DATABASE}
     depends_on:
