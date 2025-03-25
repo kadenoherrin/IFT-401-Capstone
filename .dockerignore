@@ -1,0 +1,7 @@
+db_data/
+__pycache__/
+*.pyc
+.env
+*.sql
+*.db
+*.log
