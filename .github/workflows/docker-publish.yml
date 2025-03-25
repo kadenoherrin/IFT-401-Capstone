@@ -2,7 +2,7 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [main]  # Change to your default branch if needed
+    branches: [main]
 
 jobs:
   build-and-push:
@@ -21,8 +21,11 @@ jobs:
 
     - name: Build and tag Docker image
       run: |
-        docker build -t ghcr.io/${{ github.repository_lowercase }}:latest .
+        IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/ift-401-capstone:latest
+        docker build -t $IMAGE_NAME .
+        echo "Built image: $IMAGE_NAME"
 
     - name: Push Docker image
       run: |
-        docker push ghcr.io/${{ github.repository_lowercase }}:latest
+        IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/ift-401-capstone:latest
+        docker push $IMAGE_NAME
