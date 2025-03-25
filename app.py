@@ -10,10 +10,14 @@ from dotenv import load_dotenv
 import threading
 import time
 from datetime import datetime, date
+import pymysql
+import time
+import sqlalchemy.exc
+
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('SQL_USERNAME')}:{os.getenv('SQL_PASSWORD')}@localhost/{os.getenv('SQL_DATABASE')}"
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('SQL_USERNAME')}:{os.getenv('SQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}/{os.getenv('SQL_DATABASE')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -65,17 +69,29 @@ class Admin(db.Model):
     fluctuation = db.Column(db.Float, nullable=False, default=0.0)  # New column for fluctuation percentage
 
 with app.app_context():
-    db.create_all()
+    connected = False
+    retries = 10
+    while not connected and retries > 0:
+        try:
+            db.create_all()
+            connected = True
+        except sqlalchemy.exc.OperationalError as e:
+            print("Database not ready, retrying in 2 seconds...")
+            time.sleep(2)
+            retries -= 1
+
+    if not connected:
+        raise Exception("Could not connect to the database after several retries.")
+
     if not Admin.query.first():
-        # Initialize default market times and fluctuation if not present
         db.session.add(Admin(start_time="09:00:00", end_time="16:00:00", 
                              day_start="Monday", day_end="Friday", fluctuation=0.0))
         db.session.commit()
-    # Initialize live_price for existing stocks if not set
     for stock in Stock.query.all():
         if stock.live_price is None:
             stock.live_price = stock.initial_price
     db.session.commit()
+
 
 # Function to fluctuate stock prices
 def fluctuate_stock_prices():
@@ -707,5 +723,3 @@ def update_stock_price(stock_id):
     flash(f'Price for {stock.name} ({stock.symbol}) updated to ${new_price:.2f}.', 'success')
     return redirect(url_for('admin'))
 
-if __name__ == '__main__':
-    app.run(debug=True)
