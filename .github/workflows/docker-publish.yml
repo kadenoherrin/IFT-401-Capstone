@@ -21,8 +21,8 @@ jobs:
 
     - name: Build and tag Docker image
       run: |
-        docker build -t ghcr.io/${{ github.repository }}:latest .
+        docker build -t ghcr.io/${{ github.repository_lowercase }}:latest .
 
     - name: Push Docker image
       run: |
-        docker push ghcr.io/${{ github.repository }}:latest
+        docker push ghcr.io/${{ github.repository_lowercase }}:latest
