@@ -100,7 +100,7 @@
 
       function showWithdrawConfirmation() {
         const withdrawAmount = parseFloat(document.getElementById('withdraw-amount').value);
-        const accountBalance = {{ portfolio_data.cash }};
+        const accountBalance = parseFloat("{{ portfolio_data.cash }}");
         if (withdrawAmount > accountBalance) {
           alert('You cannot withdraw more than your account balance.');
           return false;
@@ -112,21 +112,22 @@
       }
 
       function updatePortfolioValues() {
+        const holdings = JSON.parse('{{ portfolio_data.holdings|tojson|safe }}');
         fetch("{{ url_for('stocks') }}", {
           headers: { "X-Requested-With": "XMLHttpRequest" }
         })
         .then(response => response.json())
         .then(data => {
           let totalStockValue = 0;
-          {% for holding in portfolio_data.holdings %}
-            const stock = data.find(s => s.symbol === "{{ holding.symbol }}");
+          holdings.forEach(holding => {
+            const stock = data.find(s => s.symbol === holding.symbol);
             if (stock) {
-              const value = stock.price * {{ holding.shares }};
+              const value = stock.price * holding.shares;
               totalStockValue += value;
-              document.getElementById(`holding-value-{{ holding.symbol }}`).innerText = 
+              document.getElementById(`holding-value-${holding.symbol}`).innerText = 
                 '$' + value.toFixed(2);
             }
-          {% endfor %}
+          });
           document.getElementById('total-stock-value').innerText = 
             '$' + totalStockValue.toFixed(2);
         })
