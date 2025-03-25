@@ -41,7 +41,7 @@ class Users(UserMixin, db.Model):
     balance = db.Column(db.Float, default=0.0)  
 
 
-class Stock(db.Model):  # Stock Database
+class Stock(db.Model):  # Stock model
     __tablename__ = 'stocks'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)  # Keep for descriptive purposes
@@ -49,7 +49,7 @@ class Stock(db.Model):  # Stock Database
     initial_price = db.Column(db.Float, nullable=False)
     live_price = db.Column(db.Float, nullable=False)  # New column for live price
 
-class Transaction(db.Model):
+class Transaction(db.Model): # Transaction model
     __tablename__ = 'transactions'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
@@ -59,7 +59,7 @@ class Transaction(db.Model):
     transaction_type = db.Column(db.Enum('buy', 'sell'), nullable=False)
     transaction_date = db.Column(db.DateTime, server_default=db.func.current_timestamp())
 
-class Admin(db.Model):
+class Admin(db.Model):  # Admin model
     __tablename__ = 'admin'
     id = db.Column(db.Integer, primary_key=True)
     start_time = db.Column(db.Time, nullable=False)
@@ -117,7 +117,7 @@ def generate_reset_token(email, salt='password-reset-salt'):
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     return serializer.dumps(email, salt=salt)
 
-def verify_reset_token(token, expiration=3600, salt='password-reset-salt'):
+def verify_reset_token(token, expiration=3600, salt='password-reset-salt'): # Verify reset
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     try:
         email = serializer.loads(token, salt=salt, max_age=expiration)
