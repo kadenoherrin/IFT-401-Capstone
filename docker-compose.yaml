@@ -2,7 +2,7 @@ version: "3.8"
 services:
   web:
     container_name: web
-    build: .
+    image: ghcr.io/omegawaffle/ift-401-capstone:lates
     ports:
       - "5000:5000"
     env_file:
