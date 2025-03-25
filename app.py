@@ -13,17 +13,14 @@ from datetime import datetime, date
 import pymysql
 import time
 import sqlalchemy.exc
-<<<<<<< HEAD
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception as e:
     print(f"Skipping .env loading: {e}")
-=======
-#hello
-#load_dotenv()
->>>>>>> 78027045268aed12961753d6c1f72d7ece3f7035
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('SQL_USERNAME')}:{os.getenv('SQL_PASSWORD')}@{os.getenv('MYSQL_HOST')}/{os.getenv('SQL_DATABASE')}"
