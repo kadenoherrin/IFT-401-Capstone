@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   web:
-    container_name: web
+    container_name: captsone-web
     image: ghcr.io/omegawaffle/ift-401-capstone:latest
     ports:
       - "5000:5000"
@@ -17,7 +17,7 @@ services:
   db:
     image: mysql:latest
     restart: always
-    container_name: mysql_db
+    container_name: capstone-db
     ports:
       - "3306:3306"
     environment:

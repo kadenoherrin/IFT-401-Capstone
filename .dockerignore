@@ -1,7 +1,32 @@
-db_data/
+# General Python stuff
 __pycache__/
-*.pyc
-.env
-*.sql
-*.db
+*.py[cod]
 *.log
+
+# Environment/IDE
+.env
+.venv/
+*.env
+*.egg-info/
+*.db
+*.sql
+*.sqlite
+*.sqlite3
+*.bak
+*.tar
+*.gz
+*.zip
+.idea/
+.vscode/
+.pytest_cache/
+
+# Docker/MySQL safety
+db_data/
+**/mysql/
+**/ib_logfile*
+**/ibdata*
+var/lib/mysql/
+*.ibd
+*.frm
+*.myd
+*.myi
