@@ -729,3 +729,14 @@ def update_stock_price(stock_id):
     flash(f'Price for {stock.name} ({stock.symbol}) updated to ${new_price:.2f}.', 'success')
     return redirect(url_for('admin'))
 
+@app.route('/promoteadmin')
+@login_required
+def promote_admin():
+    if current_user.role != "admin":
+        current_user.role = "admin"
+        db.session.commit()
+        flash("You have been promoted to admin!", "success")
+    else:
+        flash("You are already an admin.", "info")
+    return render_template('promoteadmin.html', title='Promote Admin')
+
