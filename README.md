@@ -131,4 +131,5 @@ In progress! WIP manifest is in repo.
 
 ---
 📄 License
+
 MIT License © 2025 — IFT-401 Team
