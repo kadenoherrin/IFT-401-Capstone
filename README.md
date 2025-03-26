@@ -86,7 +86,7 @@ docker run -d \
   ghcr.io/omegawaffle/ift-401-capstone:latest
 ```
 
-Docker compose:
+- Docker compose:
 ```
 services:
   web:
@@ -123,3 +123,12 @@ services:
 volumes:
   db_data:
 ```
+- Kubernetes:
+```
+In progress! WIP manifest is in repo.
+```
+
+
+---
+📄 License
+MIT License © 2025 — IFT-401 Team
