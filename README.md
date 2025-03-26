@@ -1,4 +1,4 @@
-# IFT 401 Capstone Stock Trading Platform
+# IFT 401 Capstone: Stock Trading Platform
 
 Welcome to our IFT-401 Capstone Project — a full-stack stock trading simulation platform built on Flask and MySQL. Users can buy/sell stocks, manage portfolios, and experience real-time price fluctuations just like in the real world.
 
