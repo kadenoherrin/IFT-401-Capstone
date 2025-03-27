@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+        - name: flask
+          image: ghcr.io/omegawaffle/ift-401-capstone:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: SQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: SQL_HOST
+            - name: SQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: SQL_USERNAME
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: SQL_PASSWORD
+            - name: SQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: SQL_DATABASE
