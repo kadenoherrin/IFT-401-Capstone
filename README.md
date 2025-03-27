@@ -123,6 +123,7 @@ services:
 volumes:
   db_data:
 ```
+---
 - Kubernetes:
 ```
 Use the provided manifests to deploy the app on your cluster. Any persistent storage can be used, but the PV and PVC is setup to use a local NFS server. Change password in the Secret to your liking.
