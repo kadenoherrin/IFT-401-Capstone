@@ -38,7 +38,7 @@
       <div style="display: inline-block; padding: 15px 30px; background-color: {{ 'green' if market_open else 'red' }}; 
                   border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         <h3 style="margin: 0; color: white;">Market Status</h3>
-        <div style="font-size: 2rem; font-weight: bold; color: white;">
+        <div id="market-status" style="font-size: 2rem; font-weight: bold; color: white;">
           {{ 'Open' if market_open else 'Closed' }}
         </div>
       </div>
@@ -112,29 +112,38 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    // Add this function to check if market is open
-    function isMarketOpen() {
-      const now = new Date();
-      const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
-      const currentTime = now.toLocaleTimeString('en-US', { hour12: false });
-      
-      const marketStartTime = "{{ portfolio_data.market_start_time if portfolio_data else '09:00:00' }}";
-      const marketEndTime = "{{ portfolio_data.market_end_time if portfolio_data else '16:00:00' }}";
-      const marketStartDay = "{{ portfolio_data.market_day_start if portfolio_data else 'Monday' }}";
-      const marketEndDay = "{{ portfolio_data.market_day_end if portfolio_data else 'Friday' }}";
-
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const currentDayIndex = days.indexOf(currentDay);
-      const startDayIndex = days.indexOf(marketStartDay);
-      const endDayIndex = days.indexOf(marketEndDay);
-
-      // Check if current day is within market days
-      if (currentDayIndex < startDayIndex || currentDayIndex > endDayIndex) {
-        return false;
+    // Function to fetch the latest market times from the server
+    async function fetchMarketTimes() {
+      try {
+        const response = await fetch("{{ url_for('stocks') }}", {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        const data = await response.json();
+        return {
+          marketOpen: new Date(data.market_start_date + "T" + data.market_start_time), // MM/DD/YYYY format
+          marketClose: data.market_close_date && data.market_close_time
+            ? new Date(data.market_close_date + "T" + data.market_close_time)
+            : null
+        };
+      } catch (error) {
+        console.error("Error fetching market times:", error);
+        return null;
       }
+    }
 
-      // Check if current time is within market hours
-      return currentTime >= marketStartTime && currentTime <= marketEndTime;
+    // Function to check if the market is open
+    async function isMarketOpen() {
+      const marketTimes = await fetchMarketTimes();
+      if (!marketTimes) return false;
+
+      const now = new Date();
+      console.log("Current time:", now);
+      console.log("Market open:", marketTimes.marketOpen);
+      console.log("Market close:", marketTimes.marketClose);
+
+      return marketTimes.marketClose
+        ? now >= marketTimes.marketOpen && now <= marketTimes.marketClose
+        : now >= marketTimes.marketOpen;
     }
 
     // Buy Stock Modal Setup
@@ -221,73 +230,54 @@
       });
     });
 
-    // Replace both buy stock form submission handlers with this single one
-    $('#buyStockForm').on('submit', function(event) {
+    // Replace market status alert with updated logic
+    $('#buyStockForm').on('submit', function (event) {
       event.preventDefault();
-      
-      if (!isMarketOpen()) {
-        alert('Market is currently closed. Trading is only available during market hours:\n' +
-              'Days: {{ portfolio_data.market_day_start }} to {{ portfolio_data.market_day_end }}\n' +
-              'Hours: {{ portfolio_data.market_start_time }} to {{ portfolio_data.market_end_time }}');
-        $('#buyStockModal').modal('hide');
-        return;
-      }
 
       const form = $(this);
-      const stockId = $('#buyStockId').val();
-      const shares = $('#buy_shares').val();
-      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
-
       $.ajax({
         url: form.attr('action'),
         type: 'POST',
         data: form.serialize(),
         success: function(response) {
           const { stock_name, shares } = response;
-          alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name.toUpperCase()} at $${currentPrice.toFixed(2)} per share.`);
-          location.reload(); // Just reload the current page instead
+          alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name.toUpperCase()}.`);
+          location.reload();
         },
         error: function(xhr) {
-          if (xhr.status === 400) {
-            alert('Insufficient funds! Please check your balance and try again.');
+          const errorResponse = JSON.parse(xhr.responseText);
+          if (xhr.status === 400 && errorResponse.error === "Market is currently closed") {
+            alert("Market is currently closed. Trading is only available when the market is open.");
+          } else if (xhr.status === 400 && errorResponse.error === "Insufficient funds") {
+            alert("Insufficient funds! Please check your balance and try again.");
           } else {
-            alert('An error occurred while processing your request.');
+            alert("An error occurred while processing your request.");
           }
         }
       });
     });
 
-    // Confirmation popup for Sell Stock
-    $('#sellStockForm').on('submit', function(event) {
+    $('#sellStockForm').on('submit', function (event) {
       event.preventDefault();
-      
-      if (!isMarketOpen()) {
-        alert('Market is currently closed. Trading is only available during market hours:\n' +
-              'Days: {{ portfolio_data.market_day_start }} to {{ portfolio_data.market_day_end }}\n' +
-              'Hours: {{ portfolio_data.market_start_time }} to {{ portfolio_data.market_end_time }}');
-        $('#sellStockModal').modal('hide');
-        return;
-      }
 
       const form = $(this);
-      const stockId = $('#sellStockId').val();
-      const shares = $('#sell_shares').val();
-      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
-
       $.ajax({
         url: form.attr('action'),
         type: 'POST',
         data: form.serialize(),
         success: function(response) {
           const { stock_name, shares } = response;
-          alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name.toUpperCase()} at $${currentPrice.toFixed(2)} per share.`);
-          location.reload(); // Just reload the current page instead
+          alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name.toUpperCase()}.`);
+          location.reload();
         },
         error: function(xhr) {
-          if (xhr.status === 400) {
-            alert('Insufficient shares! Please check your holdings and try again.');
+          const errorResponse = JSON.parse(xhr.responseText);
+          if (xhr.status === 400 && errorResponse.error === "Market is currently closed") {
+            alert("Market is currently closed. Trading is only available when the market is open.");
+          } else if (xhr.status === 400 && errorResponse.error.startsWith("Insufficient shares")) {
+            alert(errorResponse.error);
           } else {
-            alert('An error occurred while processing your request.');
+            alert("An error occurred while processing your request.");
           }
         }
       });

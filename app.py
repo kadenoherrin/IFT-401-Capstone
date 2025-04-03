@@ -68,11 +68,9 @@ class Transaction(db.Model): # Transaction model
 class Admin(db.Model):  # Admin model
     __tablename__ = 'admin'
     id = db.Column(db.Integer, primary_key=True)
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
-    day_start = db.Column(db.String(10), nullable=False, default='Monday')
-    day_end = db.Column(db.String(10), nullable=False, default='Friday')
-    fluctuation = db.Column(db.Float, nullable=False, default=0.0)  # New column for fluctuation percentage
+    market_open = db.Column(db.DateTime, nullable=False)  # New column for market open datetime
+    market_close = db.Column(db.DateTime, nullable=False)  # New column for market close datetime
+    fluctuation = db.Column(db.Float, nullable=False, default=0.0)
 
 with app.app_context():
     connected = False
@@ -90,8 +88,7 @@ with app.app_context():
         raise Exception("Could not connect to the database after several retries.")
 
     if not Admin.query.first():
-        db.session.add(Admin(start_time="09:00:00", end_time="16:00:00", 
-                             day_start="Monday", day_end="Friday", fluctuation=0.0))
+        db.session.add(Admin(market_open=datetime.strptime("09:00:00", "%H:%M:%S"), market_close=datetime.strptime("16:00:00", "%H:%M:%S"), fluctuation=0.0))
         db.session.commit()
     for stock in Stock.query.all():
         if stock.live_price is None:
@@ -257,28 +254,25 @@ def unauthorized():
 @login_required
 @admin_required
 def update_market_times():
-    start_time = request.form.get('start_time')
-    end_time = request.form.get('end_time')
-    day_start = request.form.get('day_start')
-    day_end = request.form.get('day_end')
+    market_open = request.form.get('market_open')
+    market_close = request.form.get('market_close')
 
-    # Validate inputs
-    if not start_time or not end_time or not day_start or not day_end:
-        flash('All fields are required. Please fill out the form completely.', 'danger')
+    # Validate inputs with correct date format (MM/DD/YYYY HH:MM:SS)
+    try:
+        market_open = datetime.strptime(market_open, '%m/%d/%Y %H:%M:%S')
+        market_close = datetime.strptime(market_close, '%m/%d/%Y %H:%M:%S')
+    except ValueError:
+        flash('Invalid date/time format. Please use MM/DD/YYYY HH:MM:SS.', 'danger')
         return redirect(url_for('admin'))
 
     market_times = Admin.query.first()
     if market_times:
-        market_times.start_time = start_time
-        market_times.end_time = end_time
-        market_times.day_start = day_start
-        market_times.day_end = day_end
+        market_times.market_open = market_open
+        market_times.market_close = market_close
     else:
         market_times = Admin(
-            start_time=start_time,
-            end_time=end_time,
-            day_start=day_start,
-            day_end=day_end
+            market_open=market_open,
+            market_close=market_close
         )
         db.session.add(market_times)
     db.session.commit()
@@ -305,10 +299,8 @@ def update_fluctuation():
         market_times.fluctuation = fluctuation
     else:
         market_times = Admin(
-            start_time="09:00:00",
-            end_time="16:00:00",
-            day_start="Monday",
-            day_end="Friday",
+            market_open=datetime.strptime("09:00:00", "%H:%M:%S"),
+            market_close=datetime.strptime("16:00:00", "%H:%M:%S"),
             fluctuation=fluctuation
         )
         db.session.add(market_times)
@@ -401,10 +393,10 @@ def portfolio():
         "num_stocks": len(portfolio_holdings),
         "total_shares": sum(h["shares"] for h in portfolio_holdings),
         "holdings": portfolio_holdings,
-        "market_start_time": market_times.start_time.strftime("%H:%M:%S") if market_times else "N/A",
-        "market_end_time": market_times.end_time.strftime("%H:%M:%S") if market_times else "N/A",
-        "market_day_start": market_times.day_start if market_times else "N/A",
-        "market_day_end": market_times.day_end if market_times else "N/A"
+        "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times else "N/A",
+        "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times else "N/A",
+        "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times else "N/A",
+        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times else "N/A"
     }
 
     return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
@@ -515,10 +507,10 @@ def stocks():
         return jsonify(stocks_list)
 
     portfolio_data = {
-        "market_start_time": market_times.start_time.strftime("%H:%M:%S") if market_times else "09:00:00",
-        "market_end_time": market_times.end_time.strftime("%H:%M:%S") if market_times else "16:00:00",
-        "market_day_start": market_times.day_start if market_times else "Monday",
-        "market_day_end": market_times.day_end if market_times else "Friday",
+        "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times and market_times.market_open else "09:00:00",
+        "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times and market_times.market_close else "16:00:00",
+        "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times and market_times.market_open else "N/A",
+        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times and market_times.market_close else "N/A",
         "holiday": holiday  # Add holiday information to portfolio_data
     }
 
@@ -526,60 +518,40 @@ def stocks():
 
 def is_market_open():
     now = datetime.now()
-    current_day = now.strftime('%A')
-    current_time = now.strftime('%H:%M:%S')
-    
     market_times = Admin.query.first()
     if not market_times:
         print("No market times found")
         return False
 
+    # Ensure market_open and market_close are datetime objects
+    market_open_datetime = market_times.market_open
+    market_close_datetime = market_times.market_close
+
     # Debug logging
-    print(f"Current day: {current_day}, time: {current_time}")
-    print(f"Market days: {market_times.day_start} to {market_times.day_end}")
-    print(f"Market hours: {market_times.start_time} to {market_times.end_time}")
+    print(f"Current datetime: {now}")
+    print(f"Market open: {market_open_datetime}, Market close: {market_close_datetime}")
 
-    days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    current_day_index = days.index(current_day)
-    start_day_index = days.index(market_times.day_start)
-    end_day_index = days.index(market_times.day_end)
-
-    # Check if the current day is within market days
-    day_is_valid = False
-    if start_day_index <= end_day_index:
-        day_is_valid = start_day_index <= current_day_index <= end_day_index
-    else:  # Market crosses Sunday (e.g., Thurs to Mon)
-        day_is_valid = current_day_index >= start_day_index or current_day_index <= end_day_index
-
-    if not day_is_valid:
-        print("Market is closed - not a trading day")
-        return False
-
-    # Convert times to comparable format
-    market_start = market_times.start_time.strftime('%H:%M:%S')
-    market_end = market_times.end_time.strftime('%H:%M:%S')
-
-    # Check if current time is within market hours
-    time_is_valid = False
-    if market_start <= market_end:
-        time_is_valid = market_start <= current_time <= market_end
-    else:  # Market crosses midnight
-        time_is_valid = current_time >= market_start or current_time <= market_end
-
-    print(f"Market is {'open' if time_is_valid else 'closed'} - time check")
-    return time_is_valid
+    # Check if the current datetime is within the market open and close range
+    return market_open_datetime <= now <= market_close_datetime
 
 @app.context_processor
 def inject_market_status():
     """Inject market status into all templates."""
-    return {"market_open": is_market_open()}
+    market_times = Admin.query.first()
+    market_open = market_times.market_open if market_times else None
+    market_close = market_times.market_close if market_times else None
+    return {
+        "market_open": is_market_open(),
+        "market_open_time": market_open.strftime("%H:%M:%S") if market_open else "N/A",
+        "market_close_time": market_close.strftime("%H:%M:%S") if market_close else "N/A"
+    }
 
 @app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
     if not is_market_open():
         return jsonify({"error": "Market is currently closed"}), 400
-        
+
     stock = Stock.query.get_or_404(stock_id)
     
     try:
@@ -626,6 +598,9 @@ def buy_stock(stock_id):
 @app.route('/sell-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def sell_stock(stock_id):
+    if not is_market_open():
+        return jsonify({"error": "Market is currently closed"}), 400
+
     stock = Stock.query.get_or_404(stock_id)
 
     total_buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='buy').scalar() or 0
