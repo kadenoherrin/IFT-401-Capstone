@@ -740,3 +740,19 @@ def promote_admin():
         flash("You are already an admin.", "info")
     return render_template('promoteadmin.html', title='Promote Admin')
 
+@app.route('/delete-stock/<int:stock_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    
+    # Delete all related transactions
+    Transaction.query.filter_by(stock_id=stock.id).delete()
+    
+    # Delete the stock
+    db.session.delete(stock)
+    db.session.commit()
+    
+    flash(f'Stock {stock.name} ({stock.symbol}) and its related transactions deleted successfully.', 'success')
+    return redirect(url_for('admin'))
+

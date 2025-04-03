@@ -6,7 +6,7 @@
 <div class="container">
   <div class="row" style="margin-top: 50px;">
     <div class="col-md-12">
-      <h1 class="text-center" style="color: var(--text-color);">Admin Panel</h1>
+      <h1 class="text-center" style="color: var(--text-color);">Admin Panel2</h1>
       <p class="text-center" style="color: var(--text-color);">Create stocks or manage users here.</p>
     </div>
   </div>
@@ -91,7 +91,7 @@
             </div>
             <div class="form-group">
               <label for="day_start" style="color: var(--text-color);">Start Day</label>
-              <select id="day_start" name="day_start" class="form-control" style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+              <select id="day_start" name="day_start" class="form-control" style="background-color: var(--bg-color); color: var (--text-color); border: 1px solid var(--accent-color);">
                 {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
                   <option value="{{ day }}" {% if market_times and market_times.day_start == day %}selected{% endif %}>{{ day }}</option>
                 {% endfor %}
@@ -174,6 +174,7 @@
                 <th>Symbol</th>
                 <th>Current Price</th>
                 <th>New Price</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -187,6 +188,11 @@
                     <input type="number" step="0.01" name="new_price" class="form-control" required
                            style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); width: 100px;">
                     <button type="submit" class="btn btn-custom-primary">Update</button>
+                  </form>
+                </td>
+                <td>
+                  <form method="post" action="{{ url_for('delete_stock', stock_id=stock.id) }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
                   </form>
                 </td>
               </tr>
