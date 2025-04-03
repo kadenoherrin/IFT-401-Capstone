@@ -6,9 +6,17 @@
 <div class="container">
   <div class="row" style="margin-top: 50px;">
     <div class="col-md-12">
-      <h1 class="text-center" style="color: var(--text-color);">Admin Panel2</h1>
+      <h1 class="text-center" style="color: var(--text-color);">Admin Panel</h1>
       <p class="text-center" style="color: var(--text-color);">Create stocks or manage users here.</p>
     </div>
+  </div>
+
+  <div class="text-center" style="margin-bottom: 20px;">
+    <span id="market-status" 
+          style="padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; 
+                 color: white; background-color: {{ 'green' if market_open else 'red' }};">
+      Market is {{ 'Open' if market_open else 'Closed' }}
+    </span>
   </div>
 
   <!-- Manage Users Panel -->

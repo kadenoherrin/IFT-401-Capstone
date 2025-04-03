@@ -14,7 +14,7 @@
 
 <section style="padding: 100px 0; background-color: var(--bg-color);">
   <div class="container">
-    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 40px;">Stocks</h1>
+    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 20px;">Stocks</h1>
     <p class="text-center" style="color: var(--text-color); font-size: 1.2rem;">
       Available stocks that can be traded are displayed below.
     </p>
@@ -26,13 +26,20 @@
              color: var(--text-color); border: 1px solid var(--accent-color);">
     </div>
 
-    <!-- Balance Display Box -->
+    <!-- Balance Display and Market Status -->
     <div class="text-center" style="margin-bottom: 30px;">
       <div style="display: inline-block; padding: 15px 30px; background-color: var(--accent-color); 
-                  border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                  border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-right: 20px;">
         <h3 style="margin: 0; color: var(--text-color);">Current Balance</h3>
         <div style="font-size: 2rem; font-weight: bold; color: var(--text-color);">
           ${{ "%.2f"|format(current_user.balance) }}
+        </div>
+      </div>
+      <div style="display: inline-block; padding: 15px 30px; background-color: {{ 'green' if market_open else 'red' }}; 
+                  border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <h3 style="margin: 0; color: white;">Market Status</h3>
+        <div style="font-size: 2rem; font-weight: bold; color: white;">
+          {{ 'Open' if market_open else 'Closed' }}
         </div>
       </div>
     </div>

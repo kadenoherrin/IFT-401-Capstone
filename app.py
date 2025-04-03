@@ -569,6 +569,11 @@ def is_market_open():
     print(f"Market is {'open' if time_is_valid else 'closed'} - time check")
     return time_is_valid
 
+@app.context_processor
+def inject_market_status():
+    """Inject market status into all templates."""
+    return {"market_open": is_market_open()}
+
 @app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
