@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Holiday{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h1 class="text-center" style="margin-top: 20px; color: var(--text-color);">Edit Holiday</h1>
+  <form method="post" action="{{ url_for('edit_holiday', holiday_id=holiday.id) }}" style="margin-top: 30px;">
+    <div class="form-group">
+      <label for="name" style="color: var(--text-color);">Holiday Name</label>
+      <input type="text" id="name" name="name" class="form-control" value="{{ holiday.name }}" required
+             style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+    </div>
+    <div class="form-group">
+      <label for="date" style="color: var(--text-color);">Date</label>
+      <input type="date" id="date" name="date" class="form-control" value="{{ holiday.date.strftime('%Y-%m-%d') }}" required
+             style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+    </div>
+    <div class="form-group">
+      <label for="start_time" style="color: var(--text-color);">Start Time (HH:MM:SS)</label>
+      <input type="time" step="1" id="start_time" name="start_time" class="form-control" value="{{ holiday.start_time.strftime('%H:%M:%S') if holiday.start_time else '' }}"
+             style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+    </div>
+    <div class="form-group">
+      <label for="end_time" style="color: var(--text-color);">End Time (HH:MM:SS)</label>
+      <input type="time" step="1" id="end_time" name="end_time" class="form-control" value="{{ holiday.end_time.strftime('%H:%M:%S') if holiday.end_time else '' }}"
+             style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+    </div>
+    <button type="submit" class="btn btn-custom-primary btn-block">Update Holiday</button>
+  </form>
+</div>
+{% endblock %}

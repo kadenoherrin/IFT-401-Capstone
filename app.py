@@ -376,6 +376,7 @@ def portfolio():
 
     holdings = {}
     total_value = 0.0
+    total_spent = 0.0  # Track the total amount spent on purchases
 
     # First pass: Calculate total shares and total cost for buy transactions only
     for tx in user_transactions:
@@ -403,16 +404,21 @@ def portfolio():
             avg_price = data["total_spent"] / data["total_bought"] if data["total_bought"] > 0 else 0
             current_value = data["shares"] * current_price
             total_value += current_value
+            total_spent += data["total_spent"]  # Add to total spent
 
             portfolio_holdings.append({
                 "symbol": stock.symbol,
                 "shares": data["shares"],
                 "avg_price": round(avg_price, 2),
-                "total_value": round(current_value, 2)
+                "total_value": round(current_value, 2),
+                "total_spent": round(data["total_spent"], 2)  # Include total_spent
             })
 
     updated_balance = Users.query.get(current_user.id).balance
     market_times = Admin.query.first()
+
+    # Calculate profit/loss
+    profit_loss = total_value - total_spent
 
     portfolio_data = {
         "total_value": round(total_value + updated_balance, 2),
@@ -420,6 +426,7 @@ def portfolio():
         "num_stocks": len(portfolio_holdings),
         "total_shares": sum(h["shares"] for h in portfolio_holdings),
         "holdings": portfolio_holdings,
+        "profit_loss": round(profit_loss, 2),  # Include profit/loss
         "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times else "N/A",
         "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times else "N/A",
         "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times else "N/A",
@@ -746,10 +753,10 @@ def deposit_cash():
         flash('Please enter a positive amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    current_user.balance += amount  # Update the user's balance
+    current_user.balance = float(current_user.balance) + amount  # Ensure precise addition
     db.session.commit()
 
-    flash(f"Successfully deposited ${amount:,.2f} to your account.", "success")
+    flash(f"Successfully deposited ${amount:.2f} to your account.", 'success')
     return redirect(url_for('portfolio'))
 
 
@@ -766,14 +773,14 @@ def withdraw_cash():
         flash('Please enter a positive amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    if amount > current_user.balance:
+    if amount > float(current_user.balance):
         flash('Insufficient balance to withdraw this amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    current_user.balance -= amount  # Deduct the amount from the user's balance
+    current_user.balance = float(current_user.balance) - amount  # Ensure precise subtraction
     db.session.commit()
 
-    flash(f"Successfully withdrew ${amount:,.2f} from your account.", 'success')
+    flash(f"Successfully withdrew ${amount:.2f} from your account.", 'success')
     return redirect(url_for('portfolio'))
 
 @app.route('/update-stock-price/<int:stock_id>', methods=['POST'])
@@ -838,11 +845,11 @@ def add_holiday():
     end_time_str = request.form.get('end_time')
     try:
         holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        # Convert the time inputs to proper time objects
-        start_time = datetime.strptime(start_time_str + ":00", "%H:%M:%S").time() if start_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
-        end_time = datetime.strptime(end_time_str + ":00", "%H:%M:%S").time() if end_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
+        # Convert the time inputs to proper time objects, including seconds
+        start_time = datetime.strptime(start_time_str, "%H:%M:%S").time() if start_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
+        end_time = datetime.strptime(end_time_str, "%H:%M:%S").time() if end_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
     except ValueError:
-        flash('Invalid date or time format.', 'danger')
+        flash('Invalid date or time format. Please ensure all fields are correctly filled.', 'danger')
         return redirect(url_for('admin'))
 
     if Holidays.query.filter_by(date=holiday_date).first():
@@ -895,4 +902,21 @@ def restore_holidays():
     db.session.commit()
     flash('Default US holidays have been restored!', 'success')
     return redirect(url_for('admin'))
+
+@app.route('/edit-holiday/<int:holiday_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_holiday(holiday_id):
+    holiday = Holidays.query.get_or_404(holiday_id)
+    if request.method == 'POST':
+        holiday.name = request.form.get('name')
+        holiday.date = datetime.strptime(request.form.get('date'), "%Y-%m-%d").date()
+        start_time = request.form.get('start_time')
+        end_time = request.form.get('end_time')
+        holiday.start_time = datetime.strptime(start_time, "%H:%M:%S").time() if start_time else datetime.strptime("00:00:00", "%H:%M:%S").time()
+        holiday.end_time = datetime.strptime(end_time, "%H:%M:%S").time() if end_time else datetime.strptime("00:00:00", "%H:%M:%S").time()
+        db.session.commit()
+        flash('Holiday updated successfully!', 'success')
+        return redirect(url_for('admin'))
+    return render_template('edit_holiday.html', holiday=holiday)
 

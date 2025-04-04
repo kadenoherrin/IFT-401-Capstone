@@ -12,14 +12,8 @@
     Market Close Date: {{ portfolio_data.market_close_date }}<br>
   </div>
   
-  <div class="text-center" style="margin-top: -20px; margin-bottom: 20px;">
-    <span id="market-status" 
-          style="padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; 
-                 color: white; background-color: {{ 'green' if market_open else 'red' }};">
-      Market is {{ 'Open' if market_open else 'Closed' }}
-    </span>
-  </div>
-
+  <!-- Removed market open indicator -->
+  
   <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">My Portfolio</h1>
   <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">A snapshot of your portfolio performance</p>
 
@@ -27,17 +21,23 @@
     <section class="portfolio-overview" style="padding: 50px 0; background-color: var(--accent-color);">
       <div class="container">
         <div class="row text-center" style="font-size: 1.6rem;">
-          <div class="col-md-4" style="color: var(--text-color);">
+          <div class="col-md-3" style="color: var(--text-color);">
             <h2>Total Value</h2>
             <p id="total-stock-value">{{ (portfolio_data.total_value - portfolio_data.cash)|currency }}</p>
           </div>
-          <div class="col-md-4" style="color: var(--text-color);">
+          <div class="col-md-3" style="color: var(--text-color);">
             <h2>Account Balance</h2>
             <p>{{ portfolio_data.cash|currency }}</p>
           </div>
-          <div class="col-md-4" style="color: var(--text-color);">
+          <div class="col-md-3" style="color: var(--text-color);">
             <h2>Total Shares</h2>
             <p>{{ portfolio_data.total_shares }}</p>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <h2>Profit/Loss</h2>
+            <p id="profit-loss" style="color: {{ 'green' if portfolio_data.profit_loss >= 0 else 'red' }};">
+              {{ portfolio_data.profit_loss|currency }}
+            </p>
           </div>
         </div>
       </div>
@@ -89,7 +89,7 @@
               <div class="form-group">
                 <label for="withdraw-amount" style="color: var(--text-color); font-size: 1.4rem;">Enter Amount</label>
                 <input type="number" step="0.01" class="form-control" id="withdraw-amount" name="amount" required
-                       style="background-color: var(--bg-color); color: var (--text-color); border: 1px solid var(--accent-color); font-size: 1.2rem;">
+                       style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); font-size: 1.2rem;">
               </div>
               <button type="submit" class="btn btn-custom-primary btn-block" style="font-size: 1.4rem;">Withdraw Cash</button>
             </form>
@@ -121,6 +121,8 @@
 
       function updatePortfolioValues() {
         const holdings = JSON.parse('{{ portfolio_data.holdings|tojson|safe }}');
+        let totalSpent = 0; // Initialize totalSpent
+
         fetch("{{ url_for('stocks') }}", {
           headers: { "X-Requested-With": "XMLHttpRequest" }
         })
@@ -128,6 +130,7 @@
         .then(data => {
           let totalStockValue = 0;
           holdings.forEach(holding => {
+            totalSpent += holding.total_spent; // Accumulate total_spent
             const stock = data.find(s => s.symbol === holding.symbol);
             if (stock) {
               const value = stock.price * holding.shares;
@@ -138,6 +141,12 @@
           });
           document.getElementById('total-stock-value').innerText = 
             '$' + totalStockValue.toFixed(2);
+
+          // Update profit/loss dynamically
+          const profitLoss = totalStockValue - totalSpent;
+          const profitLossElement = document.getElementById('profit-loss');
+          profitLossElement.innerText = '$' + profitLoss.toFixed(2);
+          profitLossElement.style.color = profitLoss >= 0 ? 'green' : 'red';
         })
         .catch(error => console.error("Error updating portfolio values:", error));
       }

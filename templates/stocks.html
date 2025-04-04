@@ -102,7 +102,7 @@
           <div class="form-group">
             <label for="buy_shares" class="form-label">Number of Shares</label>
             <input type="number" class="form-control" id="buy_shares" name="shares" required
-                   style="background-color: var(--bg-color); color: var (--text-color); border: 1px solid var(--accent-color);">
+                   style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
@@ -244,8 +244,8 @@
         type: 'POST',
         data: form.serialize(),
         success: function(response) {
-          const { stock_name, shares } = response;
-          alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name.toUpperCase()}.`);
+          const { stock_name, shares, stock_price, total_cost } = response;
+          alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal cost: $${total_cost.toFixed(2)}`);
           location.reload();
         },
         error: function(xhr) {
@@ -256,7 +256,12 @@
             } else if (errorResponse.error === "Market is currently closed") {
               alert("Market is currently closed. Trading is only available during market hours.");
             } else if (errorResponse.error === "Insufficient funds") {
-              alert("Insufficient funds! Please check your balance and try again.");
+              const shares = parseInt($('#buy_shares').val());
+              const stockId = $('#buyStockId').val();
+              const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+              const totalCost = (shares * currentPrice).toFixed(2);
+              const balance = parseFloat("{{ current_user.balance }}").toFixed(2);
+              alert(`Insufficient funds! This transaction would cost $${totalCost} for ${shares} shares at $${currentPrice.toFixed(2)} per share.\nYour current balance is $${balance}.`);
             } else {
               alert("An error occurred while processing your request.");
             }
@@ -274,8 +279,8 @@
         type: 'POST',
         data: form.serialize(),
         success: function(response) {
-          const { stock_name, shares } = response;
-          alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name.toUpperCase()}.`);
+          const { stock_name, shares, stock_price, total_value } = response;
+          alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal value: $${total_value.toFixed(2)}`);
           location.reload();
         },
         error: function(xhr) {
