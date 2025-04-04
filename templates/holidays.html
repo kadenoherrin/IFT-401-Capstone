@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Holidays{% endblock %}
+{% block content %}
+<div class="container" style="padding: 50px 0;">
+  <h1 class="text-center" style="color: var(--text-color);">Holidays</h1>
+  <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color);">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Date</th>
+        <th>Start Time</th>
+        <th>End Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for holiday in holidays %}
+      <tr>
+        <td>{{ holiday.name }}</td>
+        <td>{{ holiday.date }}</td>
+        <td>{{ holiday.start_time }}</td>
+        <td>{{ holiday.end_time }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -15,7 +15,11 @@
     <span id="market-status" 
           style="padding: 10px 20px; border-radius: 5px; font-size: 1.2rem; 
                  color: white; background-color: {{ 'green' if market_open else 'red' }};">
-      Market is {{ 'Open' if market_open else 'Closed' }}
+      {% if holiday_status %}
+        {{ holiday_status }}
+      {% else %}
+        Market is {{ 'Open' if market_open else 'Closed' }}
+      {% endif %}
     </span>
   </div>
 
@@ -179,6 +183,93 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Holidays Panel -->
+  <div class="row" style="margin-top: 30px;">
+    <div class="col-md-12">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title" style="color: var(--text-color);">Current Holidays</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('restore_holidays') }}" style="margin-bottom: 20px;">
+            <button type="submit" class="btn btn-custom-primary">Restore Default US Holidays</button>
+          </form>
+          <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color);">
+            <thead>
+              <tr>
+                <th>Holiday Name</th>
+                <th>Date</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for holiday in holidays %}
+              <tr>
+                <td>{{ holiday.name }}</td>
+                <td>{{ holiday.date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ holiday.start_time.strftime('%H:%M:%S') if holiday.start_time else 'N/A' }}</td>
+                <td>{{ holiday.end_time.strftime('%H:%M:%S') if holiday.end_time else 'N/A' }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('delete_holiday', holiday_id=holiday.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <!-- Add Custom Holiday Form -->
+          <div class="panel panel-default" style="margin-top: 20px; background-color: var(--bg-color); border-color: var(--accent-color);">
+            <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+              <h4 class="panel-title" style="color: var(--text-color);">Add Custom Holiday</h4>
+            </div>
+            <div class="panel-body">
+              <form method="post" action="{{ url_for('add_holiday') }}" class="row">
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label for="name" style="color: var(--text-color);">Holiday Name</label>
+                    <input type="text" id="name" name="name" class="form-control" required
+                           style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="form-group">
+                    <label for="date" style="color: var(--text-color);">Date</label>
+                    <input type="date" id="date" name="date" class="form-control" required
+                           style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <div class="form-group">
+                    <label for="start_time" style="color: var(--text-color);">Start Time</label>
+                    <input type="time" id="start_time" name="start_time" class="form-control"
+                           style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <div class="form-group">
+                    <label for="end_time" style="color: var(--text-color);">End Time</label>
+                    <input type="time" id="end_time" name="end_time" class="form-control"
+                           style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <div class="form-group">
+                    <label style="visibility: hidden;">Add</label>
+                    <button type="submit" class="btn btn-custom-primary form-control">Add Holiday</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>

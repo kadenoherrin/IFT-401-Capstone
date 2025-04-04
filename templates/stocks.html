@@ -39,7 +39,11 @@
                   border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
         <h3 style="margin: 0; color: white;">Market Status</h3>
         <div id="market-status" style="font-size: 2rem; font-weight: bold; color: white;">
-          {{ 'Open' if market_open else 'Closed' }}
+          {% if holiday_status %}
+            {{ holiday_status }}
+          {% else %}
+            {{ 'Open' if market_open else 'Closed' }}
+          {% endif %}
         </div>
       </div>
     </div>
@@ -246,12 +250,16 @@
         },
         error: function(xhr) {
           const errorResponse = JSON.parse(xhr.responseText);
-          if (xhr.status === 400 && errorResponse.error === "Market is currently closed") {
-            alert("Market is currently closed. Trading is only available when the market is open.");
-          } else if (xhr.status === 400 && errorResponse.error === "Insufficient funds") {
-            alert("Insufficient funds! Please check your balance and try again.");
-          } else {
-            alert("An error occurred while processing your request.");
+          if (xhr.status === 400) {
+            if (errorResponse.error.startsWith("Holiday")) {
+              alert(errorResponse.error);
+            } else if (errorResponse.error === "Market is currently closed") {
+              alert("Market is currently closed. Trading is only available during market hours.");
+            } else if (errorResponse.error === "Insufficient funds") {
+              alert("Insufficient funds! Please check your balance and try again.");
+            } else {
+              alert("An error occurred while processing your request.");
+            }
           }
         }
       });
@@ -272,12 +280,16 @@
         },
         error: function(xhr) {
           const errorResponse = JSON.parse(xhr.responseText);
-          if (xhr.status === 400 && errorResponse.error === "Market is currently closed") {
-            alert("Market is currently closed. Trading is only available when the market is open.");
-          } else if (xhr.status === 400 && errorResponse.error.startsWith("Insufficient shares")) {
-            alert(errorResponse.error);
-          } else {
-            alert("An error occurred while processing your request.");
+          if (xhr.status === 400) {
+            if (errorResponse.error.startsWith("Holiday")) {
+              alert(errorResponse.error);
+            } else if (errorResponse.error === "Market is currently closed") {
+              alert("Market is currently closed. Trading is only available during market hours.");
+            } else if (errorResponse.error.startsWith("Insufficient shares")) {
+              alert(errorResponse.error);
+            } else {
+              alert("An error occurred while processing your request.");
+            }
           }
         }
       });

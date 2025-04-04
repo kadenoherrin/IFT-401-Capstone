@@ -72,6 +72,14 @@ class Admin(db.Model):  # Admin model
     market_close = db.Column(db.DateTime, nullable=False)  # New column for market close datetime
     fluctuation = db.Column(db.Float, nullable=False, default=0.0)
 
+class Holidays(db.Model):  # Holidays model
+    __tablename__ = 'holidays'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.Date, nullable=False, unique=True)
+    start_time = db.Column(db.Time, nullable=False, default=datetime.strptime("00:00:00", "%H:%M:%S").time())
+    end_time = db.Column(db.Time, nullable=False, default=datetime.strptime("00:00:00", "%H:%M:%S").time())
+
 with app.app_context():
     connected = False
     retries = 10
@@ -93,6 +101,24 @@ with app.app_context():
     for stock in Stock.query.all():
         if stock.live_price is None:
             stock.live_price = stock.initial_price
+    db.session.commit()
+
+    # Add default US holidays if not already present
+    us_holidays = [
+        {"name": "New Year's Day", "date": date(datetime.now().year, 1, 1)},
+        {"name": "Martin Luther King Jr. Day", "date": date(datetime.now().year, 1, 17)},
+        {"name": "Presidents Day", "date": date(datetime.now().year, 2, 21)},
+        {"name": "Memorial Day", "date": date(datetime.now().year, 5, 29)},
+        {"name": "Juneteenth", "date": date(datetime.now().year, 6, 19)},
+        {"name": "Independence Day", "date": date(datetime.now().year, 7, 4)},
+        {"name": "Labor Day", "date": date(datetime.now().year, 9, 4)},
+        {"name": "Thanksgiving Day", "date": date(datetime.now().year, 11, 23)},
+        {"name": "Christmas Day", "date": date(datetime.now().year, 12, 25)},
+    ]
+
+    for holiday in us_holidays:
+        if not Holidays.query.filter_by(date=holiday["date"]).first():
+            db.session.add(Holidays(name=holiday["name"], date=holiday["date"]))
     db.session.commit()
 
 
@@ -317,7 +343,8 @@ def admin():
     users = Users.query.all()
     market_times = Admin.query.first()
     stocks = Stock.query.all()  # Fetch all stocks
-    return render_template("admin.html", users=users, market_times=market_times, stocks=stocks)
+    holidays = Holidays.query.all()  # Make sure to query all holidays
+    return render_template("admin.html", users=users, market_times=market_times, stocks=stocks, holidays=holidays)
 
 @app.route('/delete-user/<int:user_id>', methods=["POST"])
 @login_required
@@ -523,15 +550,29 @@ def is_market_open():
         print("No market times found")
         return False
 
-    # Ensure market_open and market_close are datetime objects
+    # Check if today is a holiday
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    
+    if holiday:
+        current_time = now.time()
+        # If both times are 00:00:00, market is closed all day
+        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
+           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
+            print(f"Market closed for holiday: {holiday.name}")
+            return False
+        # If specific times are set, check if current time is within range
+        elif not (holiday.start_time <= current_time <= holiday.end_time):
+            print(f"Market closed for holiday hours: {holiday.name}")
+            return False
+
+    # Regular market hours check
     market_open_datetime = market_times.market_open
     market_close_datetime = market_times.market_close
 
-    # Debug logging
     print(f"Current datetime: {now}")
     print(f"Market open: {market_open_datetime}, Market close: {market_close_datetime}")
 
-    # Check if the current datetime is within the market open and close range
     return market_open_datetime <= now <= market_close_datetime
 
 @app.context_processor
@@ -540,15 +581,49 @@ def inject_market_status():
     market_times = Admin.query.first()
     market_open = market_times.market_open if market_times else None
     market_close = market_times.market_close if market_times else None
+
+    # Check for holiday
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    holiday_status = None
+    is_open = True  # Start with assumption market is open
+    
+    if holiday:
+        current_time = datetime.now().time()
+        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
+           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
+            holiday_status = f"Closed - {holiday.name}"
+            is_open = False
+        elif not (holiday.start_time <= current_time <= holiday.end_time):
+            holiday_status = f"Closed - {holiday.name} ({holiday.start_time.strftime('%H:%M')} - {holiday.end_time.strftime('%H:%M')})"
+            is_open = False
+    
+    # Only check regular market hours if not already closed due to holiday
+    if is_open and market_times:
+        now = datetime.now()
+        is_open = market_times.market_open <= now <= market_times.market_close
+    
     return {
-        "market_open": is_market_open(),
+        "market_open": is_open,
         "market_open_time": market_open.strftime("%H:%M:%S") if market_open else "N/A",
-        "market_close_time": market_close.strftime("%H:%M:%S") if market_close else "N/A"
+        "market_close_time": market_close.strftime("%H:%M:%S") if market_close else "N/A",
+        "holiday_status": holiday_status
     }
 
 @app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
+    # Check for holiday first
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    if holiday:
+        current_time = datetime.now().time()
+        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
+           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
+            return jsonify({"error": f"Holiday: Market closed for {holiday.name}"}), 400
+        elif not (holiday.start_time <= current_time <= holiday.end_time):
+            return jsonify({"error": f"Holiday Hours: Market closed for {holiday.name} ({holiday.start_time} - {holiday.end_time})"}), 400
+
     if not is_market_open():
         return jsonify({"error": "Market is currently closed"}), 400
 
@@ -582,7 +657,6 @@ def buy_stock(stock_id):
         price=current_price,  # Use the live price
         transaction_type="buy"
     )
-
     db.session.add(new_transaction)
     db.session.commit()
 
@@ -598,6 +672,17 @@ def buy_stock(stock_id):
 @app.route('/sell-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def sell_stock(stock_id):
+    # Check for holiday first
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    if holiday:
+        current_time = datetime.now().time()
+        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
+           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
+            return jsonify({"error": f"Holiday: Market closed for {holiday.name}"}), 400
+        elif not (holiday.start_time <= current_time <= holiday.end_time):
+            return jsonify({"error": f"Holiday Hours: Market closed for {holiday.name} ({holiday.start_time} - {holiday.end_time})"}), 400
+
     if not is_market_open():
         return jsonify({"error": "Market is currently closed"}), 400
 
@@ -634,7 +719,6 @@ def sell_stock(stock_id):
         "shares": shares,
         "total_value": total_value
     })
-
 
 @app.route('/create-stock', methods=["POST"])
 @login_required
@@ -691,7 +775,9 @@ def withdraw_cash():
 
     flash(f"Successfully withdrew ${amount:,.2f} from your account.", 'success')
     return redirect(url_for('portfolio'))
+
 @app.route('/update-stock-price/<int:stock_id>', methods=['POST'])
+@login_required
 @admin_required
 def update_stock_price(stock_id):
     stock = Stock.query.get_or_404(stock_id)
@@ -703,7 +789,6 @@ def update_stock_price(stock_id):
     except ValueError:
         flash('Invalid price entered.', 'danger')
         return redirect(url_for('admin'))
-
     stock.initial_price = new_price
     db.session.commit()
     flash(f'Price for {stock.name} ({stock.symbol}) updated to ${new_price:.2f}.', 'success')
@@ -734,5 +819,80 @@ def delete_stock(stock_id):
     db.session.commit()
     
     flash(f'Stock {stock.name} ({stock.symbol}) and its related transactions deleted successfully.', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/holidays', methods=['GET'])
+@login_required
+@admin_required
+def holidays():
+    holidays = Holidays.query.all()
+    return render_template('holidays.html', holidays=holidays)
+
+@app.route('/add-holiday', methods=['POST'])
+@login_required
+@admin_required
+def add_holiday():
+    name = request.form.get('name')
+    date_str = request.form.get('date')
+    start_time_str = request.form.get('start_time')
+    end_time_str = request.form.get('end_time')
+    try:
+        holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        # Convert the time inputs to proper time objects
+        start_time = datetime.strptime(start_time_str + ":00", "%H:%M:%S").time() if start_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
+        end_time = datetime.strptime(end_time_str + ":00", "%H:%M:%S").time() if end_time_str else datetime.strptime("00:00:00", "%H:%M:%S").time()
+    except ValueError:
+        flash('Invalid date or time format.', 'danger')
+        return redirect(url_for('admin'))
+
+    if Holidays.query.filter_by(date=holiday_date).first():
+        flash('Holiday already exists for this date.', 'danger')
+        return redirect(url_for('admin'))
+    new_holiday = Holidays(name=name, date=holiday_date, start_time=start_time, end_time=end_time)
+    db.session.add(new_holiday)
+    db.session.commit()
+    flash('Holiday added successfully!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/delete-holiday/<int:holiday_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_holiday(holiday_id):
+    holiday = Holidays.query.get_or_404(holiday_id)
+    db.session.delete(holiday)
+    db.session.commit()
+    flash('Holiday deleted successfully.', 'success')
+    return redirect(url_for('admin'))  # Changed from 'holidays' to 'admin'
+
+@app.route('/restore-holidays', methods=['POST'])
+@login_required
+@admin_required
+def restore_holidays():
+    # Default US holidays list
+    us_holidays = [
+        {"name": "New Year's Day", "date": date(datetime.now().year, 1, 1)},
+        {"name": "Martin Luther King Jr. Day", "date": date(datetime.now().year, 1, 17)},
+        {"name": "Presidents Day", "date": date(datetime.now().year, 2, 21)},
+        {"name": "Memorial Day", "date": date(datetime.now().year, 5, 29)},
+        {"name": "Juneteenth", "date": date(datetime.now().year, 6, 19)},
+        {"name": "Independence Day", "date": date(datetime.now().year, 7, 4)},
+        {"name": "Labor Day", "date": date(datetime.now().year, 9, 4)},
+        {"name": "Thanksgiving Day", "date": date(datetime.now().year, 11, 23)},
+        {"name": "Christmas Day", "date": date(datetime.now().year, 12, 25)}
+    ]
+
+    # Add holidays that don't exist
+    for holiday in us_holidays:
+        if not Holidays.query.filter_by(date=holiday["date"]).first():
+            new_holiday = Holidays(
+                name=holiday["name"],
+                date=holiday["date"],
+                start_time=datetime.strptime("00:00:00", "%H:%M:%S").time(),
+                end_time=datetime.strptime("00:00:00", "%H:%M:%S").time()
+            )
+            db.session.add(new_holiday)
+    
+    db.session.commit()
+    flash('Default US holidays have been restored!', 'success')
     return redirect(url_for('admin'))
 
