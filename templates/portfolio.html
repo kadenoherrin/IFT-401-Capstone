@@ -69,6 +69,7 @@
       </div>
     </section>
 
+
     <section class="cash-management-section" style="padding: 50px 0; background-color: var(--bg-color);">
       <div class="container">
         <div class="row">
@@ -97,6 +98,7 @@
         </div>
       </div>
     </section>
+    #<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
       function showDepositConfirmation() {
         const depositAmount = parseFloat(document.getElementById('deposit-amount').value);
@@ -153,6 +155,7 @@
 
       updatePortfolioValues();
       setInterval(updatePortfolioValues, 5000);
+
     </script>
   {% else %}
     <section class="portfolio-empty" style="padding: 100px 0; background-color: var(--bg-color); text-align: center;">

@@ -420,6 +420,7 @@ def portfolio():
     # Calculate profit/loss
     profit_loss = total_value - total_spent
 
+
     portfolio_data = {
         "total_value": round(total_value + updated_balance, 2),
         "cash": round(updated_balance, 2),
@@ -430,7 +431,8 @@ def portfolio():
         "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times else "N/A",
         "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times else "N/A",
         "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times else "N/A",
-        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times else "N/A"
+        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times else "N/A",
+        
     }
 
     return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
