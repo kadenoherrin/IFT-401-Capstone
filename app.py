@@ -378,15 +378,26 @@ def portfolio():
     total_value = 0.0
     total_spent = 0.0  # Track the total amount spent on purchases
 
+    # For realized gains/losses
+    realized_gain = 0.0
+    total_sell_value = 0.0
+    total_buys = 0
+    total_sells = 0
+
     # First pass: Calculate total shares and total cost for buy transactions only
     for tx in user_transactions:
         sid = tx.stock_id
         if sid not in holdings:
-            holdings[sid] = {"shares": 0, "total_cost": 0.0, "total_bought": 0, "total_spent": 0.0}
+            holdings[sid] = {"shares": 0, "total_cost": 0.0, "total_bought": 0, "total_spent": 0.0, "total_sold": 0, "realized_gain": 0.0}
         
         if tx.transaction_type == 'buy':
             holdings[sid]["total_bought"] += tx.shares
             holdings[sid]["total_spent"] += tx.shares * tx.price
+            total_buys += tx.shares
+        elif tx.transaction_type == 'sell':
+            holdings[sid]["total_sold"] += tx.shares
+            holdings[sid]["realized_gain"] += tx.shares * tx.price
+            total_sells += tx.shares
         
         # Update current shares count
         if tx.transaction_type == 'buy':
@@ -395,6 +406,13 @@ def portfolio():
             holdings[sid]["shares"] -= tx.shares
 
     portfolio_holdings = []
+    best_performer = None
+    worst_performer = None
+    largest_holding = None
+    max_value = 0
+    min_perf = None
+    max_perf = None
+
     for sid, data in holdings.items():
         if data["shares"] > 0:  # Only process stocks we still own
             stock = Stock.query.get(sid)
@@ -406,13 +424,49 @@ def portfolio():
             total_value += current_value
             total_spent += data["total_spent"]  # Add to total spent
 
+            # Calculate performance
+            perf = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
+
+            # Track best/worst performer
+            if max_perf is None or perf > max_perf:
+                max_perf = perf
+                best_performer = {
+                    "symbol": stock.symbol,
+                    "perf": perf,
+                    "shares": data["shares"],
+                    "current_value": current_value
+                }
+            if min_perf is None or perf < min_perf:
+                min_perf = perf
+                worst_performer = {
+                    "symbol": stock.symbol,
+                    "perf": perf,
+                    "shares": data["shares"],
+                    "current_value": current_value
+                }
+            # Track largest holding
+            if current_value > max_value:
+                max_value = current_value
+                largest_holding = {
+                    "symbol": stock.symbol,
+                    "shares": data["shares"],
+                    "current_value": current_value
+                }
+
             portfolio_holdings.append({
                 "symbol": stock.symbol,
                 "shares": data["shares"],
                 "avg_price": round(avg_price, 2),
                 "total_value": round(current_value, 2),
-                "total_spent": round(data["total_spent"], 2)  # Include total_spent
+                "total_spent": round(data["total_spent"], 2),  # Include total_spent
+                "perf": round(perf, 2)
             })
+
+        # Realized gain/loss for this stock (from sells)
+        if data["total_sold"] > 0:
+            avg_buy_price = data["total_spent"] / data["total_bought"] if data["total_bought"] > 0 else 0
+            realized_gain += data["realized_gain"] - (data["total_sold"] * avg_buy_price)
+            total_sell_value += data["realized_gain"]
 
     updated_balance = Users.query.get(current_user.id).balance
     market_times = Admin.query.first()
@@ -420,6 +474,11 @@ def portfolio():
     # Calculate profit/loss
     profit_loss = total_value - total_spent
 
+    # Total invested (all buy transactions)
+    total_invested = sum(tx.shares * tx.price for tx in user_transactions if tx.transaction_type == 'buy')
+
+    # Number of transactions
+    num_transactions = len(user_transactions)
 
     portfolio_data = {
         "total_value": round(total_value + updated_balance, 2),
@@ -432,7 +491,13 @@ def portfolio():
         "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times else "N/A",
         "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times else "N/A",
         "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times else "N/A",
-        
+        # --- New stats ---
+        "total_invested": round(total_invested, 2),
+        "realized_gain": round(realized_gain, 2),
+        "num_transactions": num_transactions,
+        "largest_holding": largest_holding,
+        "best_performer": best_performer,
+        "worst_performer": worst_performer,
     }
 
     return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)

@@ -43,6 +43,65 @@
       </div>
     </section>
 
+    <!-- Portfolio Stats Section -->
+    <section class="portfolio-stats" style="padding: 30px 0; background-color: var(--bg-color);">
+      <div class="container">
+        <h2 class="text-center" style="color: var(--text-color); font-size: 2rem;">Portfolio Stats</h2>
+        <div class="row text-center" style="font-size: 1.2rem;">
+          <div class="col-md-3" style="color: var(--text-color);">
+            <strong>Total Invested:</strong><br>
+            <span id="portfolio-total-invested">{{ portfolio_data.total_invested|currency }}</span>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <strong>Realized Gain/Loss:</strong><br>
+            <span style="color: {{ 'green' if portfolio_data.realized_gain >= 0 else 'red' }}">
+              <span id="portfolio-realized-gain">{{ portfolio_data.realized_gain|currency }}</span>
+            </span>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <strong>Number of Transactions:</strong><br>
+            <span id="portfolio-num-transactions">{{ portfolio_data.num_transactions }}</span>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <strong>Number of Stocks Held:</strong><br>
+            <span id="portfolio-num-stocks">{{ portfolio_data.num_stocks }}</span>
+          </div>
+        </div>
+        <div class="row text-center" style="font-size: 1.2rem; margin-top: 20px;">
+          <div class="col-md-4" style="color: var(--text-color);">
+            <strong>Largest Holding:</strong><br>
+            <span id="portfolio-largest-holding">
+            {% if portfolio_data.largest_holding %}
+              {{ portfolio_data.largest_holding.symbol }} ({{ portfolio_data.largest_holding.shares }} shares, {{ portfolio_data.largest_holding.current_value|currency }})
+            {% else %}
+              N/A
+            {% endif %}
+            </span>
+          </div>
+          <div class="col-md-4" style="color: var(--text-color);">
+            <strong>Best Performer:</strong><br>
+            <span id="portfolio-best-performer">
+            {% if portfolio_data.best_performer %}
+              {{ portfolio_data.best_performer.symbol }} ({{ portfolio_data.best_performer.perf|round(2) }}%, {{ portfolio_data.best_performer.current_value|currency }})
+            {% else %}
+              N/A
+            {% endif %}
+            </span>
+          </div>
+          <div class="col-md-4" style="color: var(--text-color);">
+            <strong>Worst Performer:</strong><br>
+            <span id="portfolio-worst-performer">
+            {% if portfolio_data.worst_performer %}
+              {{ portfolio_data.worst_performer.symbol }} ({{ portfolio_data.worst_performer.perf|round(2) }}%, {{ portfolio_data.worst_performer.current_value|currency }})
+            {% else %}
+              N/A
+            {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="portfolio-details" style="padding: 100px 0; background-color: var(--bg-color);">
       <div class="container">
         <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Portfolio Details</h2>
@@ -52,7 +111,9 @@
               <tr>
                 <th>Stock</th>
                 <th>Shares</th>
+                <th>Avg. Buy Price</th>
                 <th>Stock Value</th>
+                <th>Performance (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -60,7 +121,9 @@
               <tr>
                 <td>{{ holding.symbol }}</td>
                 <td>{{ holding.shares }}</td>
+                <td>{{ holding.avg_price|currency }}</td>
                 <td id="holding-value-{{ holding.symbol }}">{{ holding.total_value|currency }}</td>
+                <td style="color: {{ 'green' if holding.perf >= 0 else 'red' }};">{{ holding.perf }}%</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -123,24 +186,79 @@
 
       function updatePortfolioValues() {
         const holdings = JSON.parse('{{ portfolio_data.holdings|tojson|safe }}');
-        let totalSpent = 0; // Initialize totalSpent
+        let totalSpent = 0;
+        let totalInvested = 0;
+        let realizedGain = 0;
+        let numTransactions = {{ portfolio_data.num_transactions }};
+        let numStocks = 0;
+        let largestHolding = null;
+        let bestPerformer = null;
+        let worstPerformer = null;
+        let maxValue = 0;
+        let maxPerf = null;
+        let minPerf = null;
+        let totalStockValue = 0;
 
         fetch("{{ url_for('stocks') }}", {
           headers: { "X-Requested-With": "XMLHttpRequest" }
         })
         .then(response => response.json())
         .then(data => {
-          let totalStockValue = 0;
           holdings.forEach(holding => {
-            totalSpent += holding.total_spent; // Accumulate total_spent
             const stock = data.find(s => s.symbol === holding.symbol);
             if (stock) {
               const value = stock.price * holding.shares;
               totalStockValue += value;
+              totalSpent += holding.total_spent;
+              totalInvested += holding.total_spent;
+              // Update holding value cell
               document.getElementById(`holding-value-${holding.symbol}`).innerText = 
                 '$' + value.toFixed(2);
+
+              // Calculate performance
+              const avgPrice = holding.avg_price;
+              const perf = avgPrice > 0 ? ((stock.price - avgPrice) / avgPrice * 100) : 0;
+
+              // Update best/worst performer
+              if (maxPerf === null || perf > maxPerf) {
+                maxPerf = perf;
+                bestPerformer = {
+                  symbol: holding.symbol,
+                  perf: perf,
+                  shares: holding.shares,
+                  current_value: value
+                };
+              }
+              if (minPerf === null || perf < minPerf) {
+                minPerf = perf;
+                worstPerformer = {
+                  symbol: holding.symbol,
+                  perf: perf,
+                  shares: holding.shares,
+                  current_value: value
+                };
+              }
+              // Update largest holding
+              if (value > maxValue) {
+                maxValue = value;
+                largestHolding = {
+                  symbol: holding.symbol,
+                  shares: holding.shares,
+                  current_value: value
+                };
+              }
+              numStocks += 1;
+
+              // Update performance cell
+              const perfCell = document.querySelector(`#holding-value-${holding.symbol}`).parentElement.querySelector('td:last-child');
+              if (perfCell) {
+                perfCell.innerText = perf.toFixed(2) + '%';
+                perfCell.style.color = perf >= 0 ? 'green' : 'red';
+              }
             }
           });
+
+          // Update total value
           document.getElementById('total-stock-value').innerText = 
             '$' + totalStockValue.toFixed(2);
 
@@ -149,12 +267,30 @@
           const profitLossElement = document.getElementById('profit-loss');
           profitLossElement.innerText = '$' + profitLoss.toFixed(2);
           profitLossElement.style.color = profitLoss >= 0 ? 'green' : 'red';
+
+          // Update portfolio stats
+          document.getElementById('portfolio-total-invested').innerText = '$' + totalInvested.toFixed(2);
+          // Realized gain/loss cannot be updated live unless you fetch all transactions, so keep static
+          document.getElementById('portfolio-num-stocks').innerText = numStocks;
+          // Number of transactions is static
+          // Largest holding
+          document.getElementById('portfolio-largest-holding').innerText = largestHolding
+            ? `${largestHolding.symbol} (${largestHolding.shares} shares, $${largestHolding.current_value.toFixed(2)})`
+            : 'N/A';
+          // Best performer
+          document.getElementById('portfolio-best-performer').innerText = bestPerformer
+            ? `${bestPerformer.symbol} (${bestPerformer.perf.toFixed(2)}%, $${bestPerformer.current_value.toFixed(2)})`
+            : 'N/A';
+          // Worst performer
+          document.getElementById('portfolio-worst-performer').innerText = worstPerformer
+            ? `${worstPerformer.symbol} (${worstPerformer.perf.toFixed(2)}%, $${worstPerformer.current_value.toFixed(2)})`
+            : 'N/A';
         })
         .catch(error => console.error("Error updating portfolio values:", error));
       }
 
       updatePortfolioValues();
-      setInterval(updatePortfolioValues, 5000);
+      setInterval(updatePortfolioValues, 3000); // Refresh every 3 seconds
 
     </script>
   {% else %}
