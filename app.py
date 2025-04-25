@@ -371,7 +371,6 @@ def change_role(user_id):
         flash('User role updated successfully.', 'success')
     return redirect(url_for('admin'))
 
-# -------------------- Portfolio --------------------
 @app.route('/portfolio')
 @login_required
 def portfolio():
@@ -793,4 +792,34 @@ def stocks():
                          title='Stocks', 
                          stocks=stocks_list, 
                          portfolio_data=portfolio_data)
+
+@app.route('/create-stock', methods=['POST'])
+@login_required
+@admin_required
+def create_stock():
+    # Use the correct form field names from the HTML template
+    name = request.form.get('stock_name')
+    symbol = request.form.get('stock_symbol')
+    initial_price = request.form.get('initial_price')
+    try:
+        initial_price = float(initial_price)
+        if initial_price <= 0:
+            raise ValueError("Initial price must be positive.")
+    except (ValueError, TypeError):
+        flash('Invalid initial price.', 'danger')
+        return redirect(url_for('admin'))
+    if not name or not symbol:
+        flash('Stock name and symbol are required.', 'danger')
+        return redirect(url_for('admin'))
+    if Stock.query.filter_by(symbol=symbol).first():
+        flash('Stock symbol already exists.', 'danger')
+        return redirect(url_for('admin'))
+    new_stock = Stock(name=name, symbol=symbol, initial_price=initial_price, live_price=initial_price)
+    db.session.add(new_stock)
+    db.session.commit()
+    flash(f'Stock {name} ({symbol}) created successfully.', 'success')
+    return redirect(url_for('admin'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
