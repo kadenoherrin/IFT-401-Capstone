@@ -65,6 +65,14 @@ class Transaction(db.Model): # Transaction model
     transaction_type = db.Column(db.Enum('buy', 'sell'), nullable=False)
     transaction_date = db.Column(db.DateTime, server_default=db.func.current_timestamp())
 
+class CashTransaction(db.Model):
+    __tablename__ = 'cash_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    transaction_type = db.Column(db.Enum('deposit', 'withdraw'), nullable=False)
+    transaction_date = db.Column(db.DateTime, nullable=False, server_default=db.func.current_timestamp())
+
 class Admin(db.Model):  # Admin model
     __tablename__ = 'admin'
     id = db.Column(db.Integer, primary_key=True)
@@ -81,19 +89,14 @@ class Holidays(db.Model):  # Holidays model
     end_time = db.Column(db.Time, nullable=False, default=datetime.strptime("00:00:00", "%H:%M:%S").time())
 
 with app.app_context():
-    connected = False
-    retries = 10
-    while not connected and retries > 0:
-        try:
-            db.create_all()
-            connected = True
-        except sqlalchemy.exc.OperationalError as e:
-            print("Database not ready, retrying in 2 seconds...")
-            time.sleep(2)
-            retries -= 1
-
-    if not connected:
-        raise Exception("Could not connect to the database after several retries.")
+    # Drop existing cash_transactions table if it exists
+    try:
+        CashTransaction.__table__.drop(db.engine)
+    except:
+        pass
+    
+    # Recreate tables
+    db.create_all()
 
     if not Admin.query.first():
         db.session.add(Admin(market_open=datetime.strptime("09:00:00", "%H:%M:%S"), market_close=datetime.strptime("16:00:00", "%H:%M:%S"), fluctuation=0.0))
@@ -500,7 +503,16 @@ def portfolio():
         "worst_performer": worst_performer,
     }
 
-    return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
+    # Add cash transactions to portfolio data
+    cash_transactions = CashTransaction.query.filter_by(user_id=current_user.id).order_by(CashTransaction.transaction_date.desc()).limit(10).all()
+    
+    portfolio_data["cash_transactions"] = [{
+        "type": tx.transaction_type,
+        "amount": tx.amount,
+        "date": tx.transaction_date.strftime("%Y-%m-%d %H:%M:%S")
+    } for tx in cash_transactions]
+    
+    return render_template('portfolio.html', portfolio_data=portfolio_data)
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -550,274 +562,6 @@ def transactions():
             total_value += data["shares"] * avg_price
     return render_template('transactions.html', title='Transactions', transactions=transactions_list, total_value=round(total_value, 2))
 
-@app.route('/add-funds', methods=['POST'])
-@login_required
-def add_funds():
-    try:
-        amount = float(request.form.get('amount'))
-    except ValueError:
-        flash('Invalid amount entered.', 'danger')
-        return redirect(url_for('portfolio'))
-
-    if amount <= 0:
-        flash('Please enter a positive amount.', 'danger')
-        return redirect(url_for('portfolio'))
-
-    current_user.balance += amount  # Update the user's balance
-    db.session.commit()
-
-    flash(f"Successfully added ${amount:,.2f} to your account.", "success")
-    return redirect(url_for('portfolio'))
-
-
-from flask import jsonify, request
-
-def is_us_holiday():
-    today = date.today()
-    holidays = {
-        # Format: date(YYYY, MM, DD): "Holiday Name"
-        date(today.year, 1, 1): "New Year's Day",
-        date(today.year, 1, 17): "Martin Luther King Jr. Day",  # Third Monday in January
-        date(today.year, 2, 21): "Presidents Day",  # Third Monday in February
-        date(today.year, 5, 29): "Memorial Day",  # Last Monday in May
-        date(today.year, 6, 19): "Juneteenth",
-        date(today.year, 7, 4): "Independence Day",
-        date(today.year, 9, 4): "Labor Day",  # First Monday in September
-        date(today.year, 11, 23): "Thanksgiving Day",  # Fourth Thursday in November
-        date(today.year, 12, 25): "Christmas Day"
-    }
-    return holidays.get(today)
-
-@app.route('/stocks')
-@login_required
-def stocks():
-    stocks_query = Stock.query.all()
-    stocks_list = []
-    market_times = Admin.query.first()
-    holiday = is_us_holiday()  # Get holiday information
-
-    for stock in stocks_query:
-        stocks_list.append({
-            "id": stock.id,
-            "symbol": stock.symbol,
-            "name": stock.name,
-            "price": stock.live_price
-        })
-
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify(stocks_list)
-
-    portfolio_data = {
-        "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times and market_times.market_open else "09:00:00",
-        "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times and market_times.market_close else "16:00:00",
-        "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times and market_times.market_open else "N/A",
-        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times and market_times.market_close else "N/A",
-        "holiday": holiday  # Add holiday information to portfolio_data
-    }
-
-    return render_template('stocks.html', title='Stocks', stocks=stocks_list, portfolio_data=portfolio_data)
-
-def is_market_open():
-    now = datetime.now()
-    market_times = Admin.query.first()
-    if not market_times:
-        print("No market times found")
-        return False
-
-    # Check if today is a holiday
-    today = date.today()
-    holiday = Holidays.query.filter_by(date=today).first()
-    
-    if holiday:
-        current_time = now.time()
-        # If both times are 00:00:00, market is closed all day
-        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
-           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
-            print(f"Market closed for holiday: {holiday.name}")
-            return False
-        # If specific times are set, check if current time is within range
-        elif not (holiday.start_time <= current_time <= holiday.end_time):
-            print(f"Market closed for holiday hours: {holiday.name}")
-            return False
-
-    # Regular market hours check
-    market_open_datetime = market_times.market_open
-    market_close_datetime = market_times.market_close
-
-    print(f"Current datetime: {now}")
-    print(f"Market open: {market_open_datetime}, Market close: {market_close_datetime}")
-
-    return market_open_datetime <= now <= market_close_datetime
-
-@app.context_processor
-def inject_market_status():
-    """Inject market status into all templates."""
-    market_times = Admin.query.first()
-    market_open = market_times.market_open if market_times else None
-    market_close = market_times.market_close if market_times else None
-
-    # Check for holiday
-    today = date.today()
-    holiday = Holidays.query.filter_by(date=today).first()
-    holiday_status = None
-    is_open = True  # Start with assumption market is open
-    
-    if holiday:
-        current_time = datetime.now().time()
-        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
-           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
-            holiday_status = f"Closed - {holiday.name}"
-            is_open = False
-        elif not (holiday.start_time <= current_time <= holiday.end_time):
-            holiday_status = f"Closed - {holiday.name} ({holiday.start_time.strftime('%H:%M')} - {holiday.end_time.strftime('%H:%M')})"
-            is_open = False
-    
-    # Only check regular market hours if not already closed due to holiday
-    if is_open and market_times:
-        now = datetime.now()
-        is_open = market_times.market_open <= now <= market_times.market_close
-    
-    return {
-        "market_open": is_open,
-        "market_open_time": market_open.strftime("%H:%M:%S") if market_open else "N/A",
-        "market_close_time": market_close.strftime("%H:%M:%S") if market_close else "N/A",
-        "holiday_status": holiday_status
-    }
-
-@app.route('/buy-stock/<int:stock_id>', methods=['POST'])
-@login_required
-def buy_stock(stock_id):
-    # Check for holiday first
-    today = date.today()
-    holiday = Holidays.query.filter_by(date=today).first()
-    if holiday:
-        current_time = datetime.now().time()
-        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
-           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
-            return jsonify({"error": f"Holiday: Market closed for {holiday.name}"}), 400
-        elif not (holiday.start_time <= current_time <= holiday.end_time):
-            return jsonify({"error": f"Holiday Hours: Market closed for {holiday.name} ({holiday.start_time} - {holiday.end_time})"}), 400
-
-    if not is_market_open():
-        return jsonify({"error": "Market is currently closed"}), 400
-
-    stock = Stock.query.get_or_404(stock_id)
-    
-    try:
-        shares = int(request.form.get("shares"))
-    except (ValueError, TypeError):
-        flash("Invalid input. Please enter a valid number of shares.", "danger")
-        return redirect(url_for("stocks"))
-
-    if shares <= 0:
-        flash("You must buy at least one share.", "danger")
-        return redirect(url_for("stocks"))
-
-    # Use locked price from client, fallback to live_price if not provided
-    try:
-        locked_price = float(request.form.get("locked_price"))
-    except (TypeError, ValueError):
-        locked_price = stock.live_price
-
-    current_price = locked_price
-    total_cost = round(current_price * shares, 2)
-    user = Users.query.get(current_user.id)
-
-    if user.balance < total_cost:
-        return jsonify({"error": "Insufficient funds"}), 400
-
-    # Deduct the total cost from the user's balance
-    user.balance -= total_cost
-
-    # Create and add the transaction to the database
-    new_transaction = Transaction(
-        user_id=user.id,
-        stock_id=stock.id,
-        shares=shares,
-        price=current_price,  # Use the locked price
-        transaction_type="buy"
-    )
-    db.session.add(new_transaction)
-    db.session.commit()
-
-    flash(f"Bought {shares} shares of {stock.symbol} at ${current_price:.2f} per share!", "success")
-    return jsonify({
-        "stock_name": stock.symbol,
-        "stock_price": current_price,
-        "shares": shares,
-        "total_cost": total_cost
-    })
-
-@app.route('/sell-stock/<int:stock_id>', methods=['POST'])
-@login_required
-def sell_stock(stock_id):
-    # Check for holiday first
-    today = date.today()
-    holiday = Holidays.query.filter_by(date=today).first()
-    if holiday:
-        current_time = datetime.now().time()
-        if holiday.start_time == datetime.strptime("00:00:00", "%H:%M:%S").time() and \
-           holiday.end_time == datetime.strptime("00:00:00", "%H:%M:%S").time():
-            return jsonify({"error": f"Holiday: Market closed for {holiday.name}"}), 400
-        elif not (holiday.start_time <= current_time <= holiday.end_time):
-            return jsonify({"error": f"Holiday Hours: Market closed for {holiday.name} ({holiday.start_time} - {holiday.end_time})"}), 400
-
-    if not is_market_open():
-        return jsonify({"error": "Market is currently closed"}), 400
-
-    stock = Stock.query.get_or_404(stock_id)
-
-    total_buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='buy').scalar() or 0
-    total_sells = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='sell').scalar() or 0
-    holdings = total_buys - total_sells
-
-    try:
-        shares = int(request.form.get('shares'))
-    except ValueError:
-        return jsonify({"error": "Invalid input. Enter a valid number of shares."}), 400
-
-    if shares <= 0:
-        return jsonify({"error": "Number of shares must be positive."}), 400
-
-    if shares > holdings:
-        return jsonify({"error": f"Insufficient shares. You own {holdings} shares."}), 400
-
-    # Use locked price from client, fallback to live_price if not provided
-    try:
-        locked_price = float(request.form.get("locked_price"))
-    except (TypeError, ValueError):
-        locked_price = stock.live_price
-
-    price = locked_price
-    total_value = round(price * shares, 2)
-
-    # Add the total value of the sold stock to the user's balance
-    current_user.balance += total_value
-
-    new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type='sell')
-
-    db.session.add(new_transaction)
-    db.session.commit()
-    return jsonify({
-        "stock_name": stock.symbol,  # Updated to use symbol
-        "stock_price": price,
-        "shares": shares,
-        "total_value": total_value
-    })
-
-@app.route('/create-stock', methods=["POST"])
-@login_required
-@admin_required
-def create_stock():
-    stock_name = request.form.get('stock_name')
-    stock_symbol = request.form.get('stock_symbol')  # New field for symbol
-    initial_price = request.form.get('initial_price')
-    new_stock = Stock(name=stock_name, symbol=stock_symbol, initial_price=initial_price, live_price=initial_price)  # Updated to include symbol and live_price
-    db.session.add(new_stock)
-    db.session.commit()
-    flash('Stock created successfully!', 'success')
-    return redirect(url_for('admin'))
-
 @app.route('/deposit-cash', methods=['POST'])
 @login_required
 def deposit_cash():
@@ -831,12 +575,19 @@ def deposit_cash():
         flash('Please enter a positive amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    current_user.balance = float(current_user.balance) + amount  # Ensure precise addition
+    current_user.balance += amount
+    
+    # Create and save the cash transaction record
+    cash_tx = CashTransaction(
+        user_id=current_user.id,
+        amount=amount,
+        transaction_type='deposit'
+    )
+    db.session.add(cash_tx)
     db.session.commit()
 
     flash(f"Successfully deposited ${amount:.2f} to your account.", 'success')
     return redirect(url_for('portfolio'))
-
 
 @app.route('/withdraw-cash', methods=['POST'])
 @login_required
@@ -851,11 +602,19 @@ def withdraw_cash():
         flash('Please enter a positive amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    if amount > float(current_user.balance):
+    if amount > current_user.balance:
         flash('Insufficient balance to withdraw this amount.', 'danger')
         return redirect(url_for('portfolio'))
 
-    current_user.balance = float(current_user.balance) - amount  # Ensure precise subtraction
+    current_user.balance -= amount
+    
+    # Create and save the cash transaction record
+    cash_tx = CashTransaction(
+        user_id=current_user.id,
+        amount=amount,
+        transaction_type='withdraw'
+    )
+    db.session.add(cash_tx)
     db.session.commit()
 
     flash(f"Successfully withdrew ${amount:.2f} from your account.", 'success')
@@ -997,4 +756,41 @@ def edit_holiday(holiday_id):
         flash('Holiday updated successfully!', 'success')
         return redirect(url_for('admin'))
     return render_template('edit_holiday.html', holiday=holiday)
+
+@app.route('/stocks')
+@login_required
+def stocks():
+    stocks = Stock.query.all()
+    market_times = Admin.query.first()
+    
+    # Get today's holiday if any
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    
+    stocks_list = []
+    for stock in stocks:
+        stocks_list.append({
+            "id": stock.id,
+            "symbol": stock.symbol,
+            "name": stock.name,
+            "price": stock.live_price
+        })
+
+    # For AJAX requests, return JSON
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(stocks_list)
+
+    # For regular requests, return template
+    portfolio_data = {
+        "market_start_time": market_times.market_open.strftime("%H:%M:%S") if market_times else "09:00:00",
+        "market_close_time": market_times.market_close.strftime("%H:%M:%S") if market_times else "16:00:00",
+        "market_start_date": market_times.market_open.strftime("%m/%d/%Y") if market_times else "N/A",
+        "market_close_date": market_times.market_close.strftime("%m/%d/%Y") if market_times else "N/A",
+        "holiday": holiday.name if holiday else None
+    }
+
+    return render_template('stocks.html', 
+                         title='Stocks', 
+                         stocks=stocks_list, 
+                         portfolio_data=portfolio_data)
 
