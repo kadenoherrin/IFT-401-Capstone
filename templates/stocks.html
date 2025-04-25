@@ -114,6 +114,55 @@
   </div>
 </div>
 
+<!-- Sell Stock Modal -->
+<div class="modal fade" id="sellStockModal" tabindex="-1" role="dialog" aria-labelledby="sellStockModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
+      <div class="modal-header" style="background-color: var(--accent-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
+      </div>
+      <form method="post" id="sellStockForm">
+        <div class="modal-body">
+          <input type="hidden" id="sellStockId" name="stock_id">
+          <div class="form-group">
+            <label for="sell_shares" class="form-label">Number of Shares</label>
+            <input type="number" class="form-control" id="sell_shares" name="shares" required
+                   style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-custom-primary">Sell Stock</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Confirmation Modal -->
+<div class="modal fade" id="confirmTransactionModal" tabindex="-1" role="dialog" aria-labelledby="confirmTransactionModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
+      <div class="modal-header" style="background-color: var(--accent-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h4 class="modal-title" id="confirmTransactionModalLabel">Confirm Transaction</h4>
+      </div>
+      <div class="modal-body">
+        <p id="confirmTransactionText"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-custom-secondary" data-dismiss="modal" id="cancelTransactionBtn">Cancel</button>
+        <button type="button" class="btn btn-custom-primary" id="confirmTransactionBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     // Function to fetch the latest market times from the server
@@ -234,18 +283,90 @@
       });
     });
 
-    // Replace market status alert with updated logic
-    $('#buyStockForm').on('submit', function (event) {
-      event.preventDefault();
+    // --- Transaction Confirmation Logic ---
+    let pendingTransaction = null; // Store transaction info before confirmation
 
+    function showConfirmationModal(type, shares, stockName, stockPrice, total) {
+      let action = type === "buy" ? "Buy" : "Sell";
+      let text = `${action} ${shares} shares of ${stockName} at $${stockPrice.toFixed(2)} per share.<br>Total ${type === "buy" ? "cost" : "value"}: $${total.toFixed(2)}<br><br>Do you want to proceed?`;
+      document.getElementById("confirmTransactionText").innerHTML = text;
+      $('#confirmTransactionModal').modal('show');
+    }
+
+    // Intercept Buy Form Submission
+    $('#buyStockForm').off('submit').on('submit', function (event) {
+      event.preventDefault();
       const form = $(this);
-      $.ajax({
+      const shares = parseInt($('#buy_shares').val());
+      const stockId = $('#buyStockId').val();
+      const stockName = $(`button[data-stock-id="${stockId}"].buy-btn`).data('stock-name') || '';
+      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+      const totalCost = shares * currentPrice;
+
+      if (!shares || shares <= 0) {
+        alert("Please enter a valid number of shares.");
+        return;
+      }
+
+      pendingTransaction = {
+        type: "buy",
+        form: form,
         url: form.attr('action'),
-        type: 'POST',
         data: form.serialize(),
+        shares: shares,
+        stockName: stockName.toUpperCase(),
+        stockPrice: currentPrice,
+        total: totalCost
+      };
+      showConfirmationModal("buy", shares, stockName.toUpperCase(), currentPrice, totalCost);
+    });
+
+    // Intercept Sell Form Submission
+    $('#sellStockForm').off('submit').on('submit', function (event) {
+      event.preventDefault();
+      const form = $(this);
+      const shares = parseInt($('#sell_shares').val());
+      const stockId = $('#sellStockId').val();
+      const stockName = $(`button[data-stock-id="${stockId}"].sell-btn`).data('stock-name') || '';
+      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+      const totalValue = shares * currentPrice;
+
+      if (!shares || shares <= 0) {
+        alert("Please enter a valid number of shares.");
+        return;
+      }
+
+      pendingTransaction = {
+        type: "sell",
+        form: form,
+        url: form.attr('action'),
+        data: form.serialize(),
+        shares: shares,
+        stockName: stockName.toUpperCase(),
+        stockPrice: currentPrice,
+        total: totalValue
+      };
+      showConfirmationModal("sell", shares, stockName.toUpperCase(), currentPrice, totalValue);
+    });
+
+    // Handle confirmation modal buttons
+    $('#confirmTransactionBtn').off('click').on('click', function () {
+      if (!pendingTransaction) return;
+      const { type, url, data, shares, stockName, stockPrice, total } = pendingTransaction;
+      $('#confirmTransactionModal').modal('hide');
+      // Submit AJAX request
+      $.ajax({
+        url: url,
+        type: 'POST',
+        data: data,
         success: function(response) {
-          const { stock_name, shares, stock_price, total_cost } = response;
-          alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal cost: $${total_cost.toFixed(2)}`);
+          if (type === "buy") {
+            const { stock_name, shares, stock_price, total_cost } = response;
+            alert(`Transaction confirmed! You bought ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal cost: $${total_cost.toFixed(2)}`);
+          } else {
+            const { stock_name, shares, stock_price, total_value } = response;
+            alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal value: $${total_value.toFixed(2)}`);
+          }
           location.reload();
         },
         error: function(xhr) {
@@ -255,42 +376,10 @@
               alert(errorResponse.error);
             } else if (errorResponse.error === "Market is currently closed") {
               alert("Market is currently closed. Trading is only available during market hours.");
-            } else if (errorResponse.error === "Insufficient funds") {
-              const shares = parseInt($('#buy_shares').val());
-              const stockId = $('#buyStockId').val();
-              const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
-              const totalCost = (shares * currentPrice).toFixed(2);
+            } else if (type === "buy" && errorResponse.error === "Insufficient funds") {
               const balance = parseFloat("{{ current_user.balance }}").toFixed(2);
-              alert(`Insufficient funds! This transaction would cost $${totalCost} for ${shares} shares at $${currentPrice.toFixed(2)} per share.\nYour current balance is $${balance}.`);
-            } else {
-              alert("An error occurred while processing your request.");
-            }
-          }
-        }
-      });
-    });
-
-    $('#sellStockForm').on('submit', function (event) {
-      event.preventDefault();
-
-      const form = $(this);
-      $.ajax({
-        url: form.attr('action'),
-        type: 'POST',
-        data: form.serialize(),
-        success: function(response) {
-          const { stock_name, shares, stock_price, total_value } = response;
-          alert(`Transaction confirmed! You sold ${shares} shares of ${stock_name} at $${stock_price.toFixed(2)} per share.\nTotal value: $${total_value.toFixed(2)}`);
-          location.reload();
-        },
-        error: function(xhr) {
-          const errorResponse = JSON.parse(xhr.responseText);
-          if (xhr.status === 400) {
-            if (errorResponse.error.startsWith("Holiday")) {
-              alert(errorResponse.error);
-            } else if (errorResponse.error === "Market is currently closed") {
-              alert("Market is currently closed. Trading is only available during market hours.");
-            } else if (errorResponse.error.startsWith("Insufficient shares")) {
+              alert(`Insufficient funds! This transaction would cost $${total.toFixed(2)} for ${shares} shares at $${stockPrice.toFixed(2)} per share.\nYour current balance is $${balance}.`);
+            } else if (type === "sell" && errorResponse.error.startsWith("Insufficient shares")) {
               alert(errorResponse.error);
             } else {
               alert("An error occurred while processing your request.");
@@ -298,7 +387,56 @@
           }
         }
       });
+      pendingTransaction = null;
     });
+
+    $('#cancelTransactionBtn').off('click').on('click', function () {
+      pendingTransaction = null;
+      $('#confirmTransactionModal').modal('hide');
+    });
+
+    // Remove duplicate AJAX logic from here!
+    // $('#buyStockForm').on('submit', ...) and $('#sellStockForm').on('submit', ...) 
+    // are now handled only by the confirmation modal logic above.
+
+    // Search function to filter stocks by name or symbol
+    function searchStocks() {
+      const searchInput = document.getElementById("stockSearch").value.toLowerCase();
+      const tableRows = document.querySelectorAll("#stockTableBody tr");
+
+      tableRows.forEach(row => {
+        const symbol = row.querySelector("td:nth-child(1)").innerText.toLowerCase();
+        const name = row.querySelector("td:nth-child(2)").innerText.toLowerCase();
+
+        if (symbol.includes(searchInput) || name.includes(searchInput)) {
+          row.style.display = ""; // Show row
+        } else {
+          row.style.display = "none"; // Hide row
+        }
+      });
+    }
+
+    // Update stock prices every 5 seconds
+    function updateStockPrices() {
+      fetch("{{ url_for('stocks') }}", { 
+          headers: { "X-Requested-With": "XMLHttpRequest" } 
+      })
+      .then(response => response.json())
+      .then(data => {
+          data.forEach(stock => {
+              let priceElement = document.getElementById(`price-${stock.id}`);
+              if (priceElement) {
+                  // Format price with 2 decimal places
+                  priceElement.innerText = `$${parseFloat(stock.price).toFixed(2)}`;
+              }
+          });
+      })
+      .catch(error => console.error("Error updating stock prices:", error));
+    }
+
+    // Initialize and start price updates
+    updateStockPrices();
+    setInterval(updateStockPrices, 5000);
   });
 
   // Search function to filter stocks by name or symbol
@@ -340,33 +478,5 @@
   updateStockPrices();
   setInterval(updateStockPrices, 5000);
 </script>
-
-<!-- Sell Stock Modal -->
-<div class="modal fade" id="sellStockModal" tabindex="-1" role="dialog" aria-labelledby="sellStockModalLabel">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
-      <div class="modal-header" style="background-color: var(--accent-color);">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
-          <span aria-hidden="true">&times;</span>
-        </button>
-        <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
-      </div>
-      <form method="post" id="sellStockForm">
-        <div class="modal-body">
-          <input type="hidden" id="sellStockId" name="stock_id">
-          <div class="form-group">
-            <label for="sell_shares" class="form-label">Number of Shares</label>
-            <input type="number" class="form-control" id="sell_shares" name="shares" required
-                   style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-custom-primary">Sell Stock</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
 {% endblock %}

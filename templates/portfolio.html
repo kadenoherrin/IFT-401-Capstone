@@ -35,7 +35,7 @@
           </div>
           <div class="col-md-3" style="color: var(--text-color);">
             <h2>Profit/Loss</h2>
-            <p id="profit-loss" style="color: {{ 'green' if portfolio_data.profit_loss >= 0 else 'red' }};">
+            <p id="profit-loss" class="{{ 'text-success' if portfolio_data.profit_loss >= 0 else 'text-danger' }}">
               {{ portfolio_data.profit_loss|currency }}
             </p>
           </div>
@@ -98,7 +98,7 @@
         </div>
       </div>
     </section>
-    #<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
       function showDepositConfirmation() {
         const depositAmount = parseFloat(document.getElementById('deposit-amount').value);
