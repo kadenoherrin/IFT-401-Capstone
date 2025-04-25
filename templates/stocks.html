@@ -199,6 +199,11 @@
         : now >= marketTimes.marketOpen;
     }
 
+    // --- Transaction Confirmation Logic ---
+    let pendingTransaction = null; // Store transaction info before confirmation
+    let lockedBuyPrice = null;
+    let lockedSellPrice = null;
+
     // Buy Stock Modal Setup
     function updateBuyModalTitle(modal, shares, stockName, stockPrice) {
       if (shares > 0) {
@@ -213,11 +218,14 @@
       var stockId = button.data('stock-id');
       var stockName = button.data('stock-name').toUpperCase();
       var modal = $(this);
-      
+
       if (!stockId) {
         console.error("Stock ID is missing!");
         return;
       }
+
+      // Lock the price at the moment the modal is opened
+      lockedBuyPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
 
       $('#buy_shares').val('');
       modal.find('.modal-title').text('Please enter shares');
@@ -225,20 +233,14 @@
       modal.find('#buyStockId').val(stockId);
 
       function updateModalPrice() {
-        var currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
         var shares = parseInt($('#buy_shares').val()) || 0;
-        updateBuyModalTitle(modal, shares, stockName, currentPrice);
+        updateBuyModalTitle(modal, shares, stockName, lockedBuyPrice);
       }
 
       $('#buy_shares').off('input').on('input', updateModalPrice);
-      
-      // Update price every 5 seconds while modal is open
-      var priceUpdateInterval = setInterval(updateModalPrice, 5000);
-      
-      // Clear interval when modal is closed
-      modal.on('hidden.bs.modal', function () {
-        clearInterval(priceUpdateInterval);
-      });
+
+      // Do NOT update price while modal is open
+      updateModalPrice();
     });
 
     // Sell Stock Modal Setup
@@ -255,11 +257,14 @@
       var stockId = button.data('stock-id');
       var stockName = button.data('stock-name').toUpperCase();
       var modal = $(this);
-      
+
       if (!stockId) {
         console.error("Stock ID is missing!");
         return;
       }
+
+      // Lock the price at the moment the modal is opened
+      lockedSellPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
 
       $('#sell_shares').val('');
       modal.find('.modal-title').text('Please enter shares');
@@ -267,24 +272,15 @@
       modal.find('#sellStockId').val(stockId);
 
       function updateModalPrice() {
-        var currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
         var shares = parseInt($('#sell_shares').val()) || 0;
-        updateSellModalTitle(modal, shares, stockName, currentPrice);
+        updateSellModalTitle(modal, shares, stockName, lockedSellPrice);
       }
 
       $('#sell_shares').off('input').on('input', updateModalPrice);
-      
-      // Update price every 5 seconds while modal is open
-      var priceUpdateInterval = setInterval(updateModalPrice, 5000);
-      
-      // Clear interval when modal is closed
-      modal.on('hidden.bs.modal', function () {
-        clearInterval(priceUpdateInterval);
-      });
-    });
 
-    // --- Transaction Confirmation Logic ---
-    let pendingTransaction = null; // Store transaction info before confirmation
+      // Do NOT update price while modal is open
+      updateModalPrice();
+    });
 
     function showConfirmationModal(type, shares, stockName, stockPrice, total) {
       let action = type === "buy" ? "Buy" : "Sell";
@@ -300,7 +296,7 @@
       const shares = parseInt($('#buy_shares').val());
       const stockId = $('#buyStockId').val();
       const stockName = $(`button[data-stock-id="${stockId}"].buy-btn`).data('stock-name') || '';
-      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+      const currentPrice = lockedBuyPrice;
       const totalCost = shares * currentPrice;
 
       if (!shares || shares <= 0) {
@@ -312,7 +308,7 @@
         type: "buy",
         form: form,
         url: form.attr('action'),
-        data: form.serialize(),
+        data: form.serialize() + `&locked_price=${encodeURIComponent(currentPrice)}`,
         shares: shares,
         stockName: stockName.toUpperCase(),
         stockPrice: currentPrice,
@@ -328,7 +324,7 @@
       const shares = parseInt($('#sell_shares').val());
       const stockId = $('#sellStockId').val();
       const stockName = $(`button[data-stock-id="${stockId}"].sell-btn`).data('stock-name') || '';
-      const currentPrice = parseFloat(document.getElementById(`price-${stockId}`).innerText.replace('$', ''));
+      const currentPrice = lockedSellPrice;
       const totalValue = shares * currentPrice;
 
       if (!shares || shares <= 0) {
@@ -340,7 +336,7 @@
         type: "sell",
         form: form,
         url: form.attr('action'),
-        data: form.serialize(),
+        data: form.serialize() + `&locked_price=${encodeURIComponent(currentPrice)}`,
         shares: shares,
         stockName: stockName.toUpperCase(),
         stockPrice: currentPrice,
@@ -394,10 +390,6 @@
       pendingTransaction = null;
       $('#confirmTransactionModal').modal('hide');
     });
-
-    // Remove duplicate AJAX logic from here!
-    // $('#buyStockForm').on('submit', ...) and $('#sellStockForm').on('submit', ...) 
-    // are now handled only by the confirmation modal logic above.
 
     // Search function to filter stocks by name or symbol
     function searchStocks() {

@@ -648,7 +648,13 @@ def buy_stock(stock_id):
         flash("You must buy at least one share.", "danger")
         return redirect(url_for("stocks"))
 
-    current_price = stock.live_price  # Use live price
+    # Use locked price from client, fallback to live_price if not provided
+    try:
+        locked_price = float(request.form.get("locked_price"))
+    except (TypeError, ValueError):
+        locked_price = stock.live_price
+
+    current_price = locked_price
     total_cost = round(current_price * shares, 2)
     user = Users.query.get(current_user.id)
 
@@ -663,7 +669,7 @@ def buy_stock(stock_id):
         user_id=user.id,
         stock_id=stock.id,
         shares=shares,
-        price=current_price,  # Use the live price
+        price=current_price,  # Use the locked price
         transaction_type="buy"
     )
     db.session.add(new_transaction)
@@ -676,7 +682,6 @@ def buy_stock(stock_id):
         "shares": shares,
         "total_cost": total_cost
     })
-
 
 @app.route('/sell-stock/<int:stock_id>', methods=['POST'])
 @login_required
@@ -712,7 +717,13 @@ def sell_stock(stock_id):
     if shares > holdings:
         return jsonify({"error": f"Insufficient shares. You own {holdings} shares."}), 400
 
-    price = stock.live_price  # Use live price
+    # Use locked price from client, fallback to live_price if not provided
+    try:
+        locked_price = float(request.form.get("locked_price"))
+    except (TypeError, ValueError):
+        locked_price = stock.live_price
+
+    price = locked_price
     total_value = round(price * shares, 2)
 
     # Add the total value of the sold stock to the user's balance
