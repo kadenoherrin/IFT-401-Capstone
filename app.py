@@ -867,20 +867,28 @@ def create_stock():
     name = request.form.get('stock_name')
     symbol = request.form.get('stock_symbol')
     initial_price = request.form.get('initial_price')
+    stock_volume = request.form.get('stock_volume')
+
     try:
         initial_price = float(initial_price)
+        stock_volume = int(stock_volume)
         if initial_price <= 0:
             raise ValueError("Initial price must be positive.")
+        if stock_volume < 0:
+            raise ValueError("Stock volume cannot be negative.")
     except (ValueError, TypeError):
-        flash('Invalid initial price.', 'danger')
+        flash('Invalid initial price or volume.', 'danger')
         return redirect(url_for('admin'))
+
     if not name or not symbol:
         flash('Stock name and symbol are required.', 'danger')
         return redirect(url_for('admin'))
+
     if Stock.query.filter_by(symbol=symbol).first():
         flash('Stock symbol already exists.', 'danger')
         return redirect(url_for('admin'))
-    new_stock = Stock(name=name, symbol=symbol, initial_price=initial_price, live_price=initial_price)
+
+    new_stock = Stock(name=name, symbol=symbol, initial_price=initial_price, live_price=initial_price, volume=stock_volume)
     db.session.add(new_stock)
     db.session.commit()
     flash(f'Stock {name} ({symbol}) created successfully.', 'success')

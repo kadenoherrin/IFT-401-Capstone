@@ -98,7 +98,7 @@
     <!-- Move Create New Stock panel here -->
     <div class="col-md-6">
       <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
-        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var (--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
           <h3 class="panel-title" style="color: var(--text-color);">Create New Stock</h3>
         </div>
         <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
@@ -114,6 +114,10 @@
             <div class="form-group">
               <label for="initial_price" style="color: var(--text-color);">Initial Price</label>
               <input type="number" class="form-control" id="initial_price" name="initial_price" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <div class="form-group">
+              <label for="stock_volume" style="color: var(--text-color);">Initial Volume</label>
+              <input type="number" class="form-control" id="stock_volume" name="stock_volume" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
             </div>
             <button type="submit" class="btn btn-custom-primary btn-block">Create Stock</button>
           </form>
