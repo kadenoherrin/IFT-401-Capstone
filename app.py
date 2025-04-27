@@ -559,6 +559,8 @@ def profile():
 @login_required
 def transactions():
     txs = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).all()
+    cash_txs = CashTransaction.query.filter_by(user_id=current_user.id).order_by(CashTransaction.transaction_date.desc()).all()
+
     transactions_list = []
     for tx in txs:
         stock = Stock.query.get(tx.stock_id)
@@ -569,6 +571,19 @@ def transactions():
             "price": tx.price,
             "transaction_date": tx.transaction_date
         })
+
+    for cash_tx in cash_txs:
+        transactions_list.append({
+            "symbol": None,  # No stock symbol for cash transactions
+            "transaction_type": cash_tx.transaction_type,
+            "amount": cash_tx.amount,
+            "price": None,
+            "transaction_date": cash_tx.transaction_date
+        })
+
+    # Sort transactions by date (most recent first)
+    transactions_list.sort(key=lambda x: x["transaction_date"], reverse=True)
+
     # Recalculate total account value from holdings.
     user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
     holdings = {}
