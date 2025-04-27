@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 import threading
 import time
-from datetime import datetime, date
+from datetime import datetime, date, time
 import pymysql
 import time
 import sqlalchemy.exc
@@ -345,9 +345,37 @@ def update_fluctuation():
 def admin():
     users = Users.query.all()
     market_times = Admin.query.first()
-    stocks = Stock.query.all()  # Fetch all stocks
-    holidays = Holidays.query.all()  # Make sure to query all holidays
-    return render_template("admin.html", users=users, market_times=market_times, stocks=stocks, holidays=holidays)
+    stocks = Stock.query.all()
+    holidays = Holidays.query.all()
+    
+    # Get today's holiday if any
+    today = date.today()
+    holiday = Holidays.query.filter_by(date=today).first()
+    holiday_status = None
+    market_open = True
+
+    if holiday:
+        zero_time = datetime.strptime("00:00:00", "%H:%M:%S").time()
+        current_time = datetime.now().time()
+        
+        if holiday.start_time == zero_time and holiday.end_time == zero_time:
+            holiday_status = f"Market Closed - {holiday.name} (All Day)"
+            market_open = False
+        elif current_time >= holiday.start_time and current_time <= holiday.end_time:
+            holiday_status = f"Market Closed - {holiday.name} ({holiday.start_time.strftime('%H:%M')} - {holiday.end_time.strftime('%H:%M')})"
+            market_open = False
+        else:
+            market_open = is_market_open()
+    else:
+        market_open = is_market_open()
+    
+    return render_template("admin.html", 
+                         users=users, 
+                         market_times=market_times, 
+                         stocks=stocks, 
+                         holidays=holidays,
+                         market_open=market_open,
+                         holiday_status=holiday_status)
 
 @app.route('/delete-user/<int:user_id>', methods=["POST"])
 @login_required
@@ -819,6 +847,38 @@ def create_stock():
     db.session.commit()
     flash(f'Stock {name} ({symbol}) created successfully.', 'success')
     return redirect(url_for('admin'))
+
+def is_market_open():
+    """Check if the market is currently open based on market times and holidays."""
+    now = datetime.now()
+    current_date = now.date()
+    current_time = now.time()
+
+    # Check if today is a holiday
+    holiday = Holidays.query.filter_by(date=current_date).first()
+    if holiday:
+        zero_time = datetime.strptime("00:00:00", "%H:%M:%S").time()
+        if holiday.start_time == zero_time and holiday.end_time == zero_time:
+            return False  # Market closed all day for this holiday
+        elif holiday.start_time and holiday.end_time:
+            # During holiday hours, market is closed
+            if current_time >= holiday.start_time and current_time <= holiday.end_time:
+                return False
+            # Outside holiday hours, check regular market hours
+        
+    # Get market times
+    market_settings = Admin.query.first()
+    if not market_settings:
+        return False
+    
+    market_open = market_settings.market_open
+    market_close = market_settings.market_close
+
+    # Convert current time to datetime for comparison
+    current_datetime = datetime.now()
+    
+    # Check if current datetime is within market hours
+    return current_datetime >= market_open and current_datetime <= market_close
 
 if __name__ == '__main__':
     app.run(debug=True)
