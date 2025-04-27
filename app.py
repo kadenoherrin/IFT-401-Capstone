@@ -54,6 +54,7 @@ class Stock(db.Model):  # Stock model
     symbol = db.Column(db.String(10), unique=True, nullable=False)  # New column for stock symbol
     initial_price = db.Column(db.Float, nullable=False)
     live_price = db.Column(db.Float, nullable=False)  # New column for live price
+    volume = db.Column(db.Integer, nullable=False, default=0)  # New column for stock volume
 
 class Transaction(db.Model): # Transaction model
     __tablename__ = 'transactions'
@@ -89,6 +90,11 @@ class Holidays(db.Model):  # Holidays model
     end_time = db.Column(db.Time, nullable=False, default=datetime.strptime("00:00:00", "%H:%M:%S").time())
 
 with app.app_context():
+    # Add volume column if it doesn't exist
+    if not hasattr(Stock, 'volume'):
+        with db.engine.connect() as conn:
+            conn.execute('ALTER TABLE stocks ADD COLUMN volume INT DEFAULT 0')
+    
     # Drop existing cash_transactions table if it exists
     try:
         CashTransaction.__table__.drop(db.engine)
@@ -668,16 +674,29 @@ def withdraw_cash():
 def update_stock_price(stock_id):
     stock = Stock.query.get_or_404(stock_id)
     try:
-        new_price = float(request.form.get('new_price'))
-        if new_price <= 0:
-            flash('Price must be greater than zero.', 'danger')
-            return redirect(url_for('admin'))
+        new_price = request.form.get('new_price')
+        new_volume = request.form.get('new_volume')
+
+        # Update price if provided
+        if new_price:
+            new_price = float(new_price)
+            if new_price <= 0:
+                flash('Price must be greater than zero.', 'danger')
+                return redirect(url_for('admin'))
+            stock.initial_price = new_price
+
+        # Update volume if provided
+        if new_volume:
+            new_volume = int(new_volume)
+            if new_volume < 0:
+                flash('Volume cannot be negative.', 'danger')
+                return redirect(url_for('admin'))
+            stock.volume = new_volume
+
+        db.session.commit()
+        flash(f'Stock {stock.name} ({stock.symbol}) updated successfully.', 'success')
     except ValueError:
-        flash('Invalid price entered.', 'danger')
-        return redirect(url_for('admin'))
-    stock.initial_price = new_price
-    db.session.commit()
-    flash(f'Price for {stock.name} ({stock.symbol}) updated to ${new_price:.2f}.', 'success')
+        flash('Invalid price or volume entered.', 'danger')
     return redirect(url_for('admin'))
 
 @app.route('/promoteadmin')
@@ -816,7 +835,8 @@ def stocks():
             "id": stock.id,
             "symbol": stock.symbol,
             "name": stock.name,
-            "price": stock.live_price
+            "price": stock.live_price,
+            "volume": stock.volume  # Ensure volume is included
         })
 
     # For AJAX requests, return JSON
@@ -916,12 +936,19 @@ def buy_stock(stock_id):
     if shares <= 0:
         return jsonify({"error": "Shares must be greater than zero"}), 400
 
+    # Check if there is enough volume to purchase
+    if stock.volume < shares:
+        return jsonify({"error": f"Insufficient stock volume. Only {stock.volume} shares available."}), 400
+
     total_cost = shares * locked_price
     if current_user.balance < total_cost:
         return jsonify({"error": "Insufficient funds"}), 400
 
-    # Deduct balance and create transaction
+    # Deduct balance and decrease stock volume
     current_user.balance -= total_cost
+    stock.volume -= shares
+
+    # Create transaction
     transaction = Transaction(
         user_id=current_user.id,
         stock_id=stock_id,
@@ -965,6 +992,9 @@ def sell_stock(stock_id):
 
     total_value = shares * locked_price
     current_user.balance += total_value
+
+    # Increase stock volume by 1 for each share sold
+    stock.volume += shares
 
     # Create transaction
     transaction = Transaction(

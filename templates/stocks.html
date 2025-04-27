@@ -55,6 +55,7 @@
             <th>Symbol</th>
             <th>Name</th>
             <th>Price</th>
+            <th>Volume</th> <!-- New column for volume -->
             <th>Actions</th>
           </tr>
         </thead>
@@ -64,6 +65,7 @@
             <td>{{ stock.symbol }}</td>
             <td>{{ stock.name }}</td>
             <td id="price-{{ stock.id }}">${{ stock.price }}</td> <!-- Correctly display live_price -->
+            <td>{{ stock.volume }}</td> <!-- Display stock volume -->
             <td>
               <button type="button" class="btn btn-success buy-btn" 
                       data-stock-id="{{ stock.id }}" 
@@ -298,6 +300,13 @@
       const stockName = $(`button[data-stock-id="${stockId}"].buy-btn`).data('stock-name') || '';
       const currentPrice = lockedBuyPrice;
       const totalCost = shares * currentPrice;
+
+      // Check if the stock volume is zero
+      const stockVolume = parseInt($(`tr:has(button[data-stock-id="${stockId}"]) td:nth-child(4)`).text());
+      if (stockVolume === 0) {
+        alert(`Cannot purchase ${stockName}. The stock volume is zero.`);
+        return;
+      }
 
       if (!shares || shares <= 0) {
         alert("Please enter a valid number of shares.");
