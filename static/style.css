@@ -62,8 +62,13 @@ a:hover {
   font-size: 1.6rem;
 }
 
-.loss {
+.loss { 
   color: red;
   font-size: 1.6rem;
+}
+
+.navbar-nav .dropdown-menu {
+  background-color: var(--accent-color); /* Use a softer color for the dropdown background */
+  border: 1px solid var(--text-color); /* Add a border for better visibility */
 }
 
