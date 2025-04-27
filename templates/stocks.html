@@ -96,7 +96,7 @@
         </button>
         <h4 class="modal-title" id="buyStockModalLabel">Buy Stock</h4>
       </div>
-      <form method="post" id="buyStockForm">
+      <form method="post" id="buyStockForm" action="/buy-stock/">
         <div class="modal-body">
           <input type="hidden" id="buyStockId" name="stock_id">
           <div class="form-group">
@@ -124,7 +124,7 @@
         </button>
         <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
       </div>
-      <form method="post" id="sellStockForm">
+      <form method="post" id="sellStockForm" action="/sell-stock/">
         <div class="modal-body">
           <input type="hidden" id="sellStockId" name="stock_id">
           <div class="form-group">
@@ -380,7 +380,10 @@
             } else {
               alert("An error occurred while processing your request.");
             }
- action = null;
+          }
+        }
+      });
+      pendingTransaction = null;
     });
 
     $('#cancelTransactionBtn').off('click').on('click', function () {

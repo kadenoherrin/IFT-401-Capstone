@@ -880,6 +880,82 @@ def is_market_open():
     # Check if current datetime is within market hours
     return current_datetime >= market_open and current_datetime <= market_close
 
+@app.route('/buy-stock/<int:stock_id>', methods=['POST'])
+@login_required
+def buy_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    try:
+        shares = int(request.form.get('shares'))
+        locked_price = float(request.form.get('locked_price'))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid input"}), 400
+
+    if shares <= 0:
+        return jsonify({"error": "Shares must be greater than zero"}), 400
+
+    total_cost = shares * locked_price
+    if current_user.balance < total_cost:
+        return jsonify({"error": "Insufficient funds"}), 400
+
+    # Deduct balance and create transaction
+    current_user.balance -= total_cost
+    transaction = Transaction(
+        user_id=current_user.id,
+        stock_id=stock_id,
+        shares=shares,
+        price=locked_price,
+        transaction_type='buy'
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    return jsonify({
+        "stock_name": stock.name,
+        "shares": shares,
+        "stock_price": locked_price,
+        "total_cost": total_cost
+    })
+
+@app.route('/sell-stock/<int:stock_id>', methods=['POST'])
+@login_required
+def sell_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    try:
+        shares = int(request.form.get('shares'))
+        locked_price = float(request.form.get('locked_price'))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid input"}), 400
+
+    if shares <= 0:
+        return jsonify({"error": "Shares must be greater than zero"}), 400
+
+    # Check if user has enough shares to sell
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id, stock_id=stock_id).all()
+    total_shares = sum(tx.shares if tx.transaction_type == 'buy' else -tx.shares for tx in user_transactions)
+    if shares > total_shares:
+        return jsonify({"error": f"Insufficient shares. You only have {total_shares} shares."}), 400
+
+    total_value = shares * locked_price
+    current_user.balance += total_value
+
+    # Create transaction
+    transaction = Transaction(
+        user_id=current_user.id,
+        stock_id=stock_id,
+        shares=shares,
+        price=locked_price,
+        transaction_type='sell'
+    )
+    db.session.add(transaction)
+    db.session.commit()
+
+    return jsonify({
+        "stock_name": stock.name,
+        "shares": shares,
+        "stock_price": locked_price,
+        "total_value": total_value
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
 
