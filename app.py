@@ -793,7 +793,8 @@ def stocks():
     # Get today's holiday if any
     today = date.today()
     holiday = Holidays.query.filter_by(date=today).first()
-    
+    market_open = is_market_open()
+
     stocks_list = []
     for stock in stocks:
         stocks_list.append({
@@ -819,7 +820,9 @@ def stocks():
     return render_template('stocks.html', 
                          title='Stocks', 
                          stocks=stocks_list, 
-                         portfolio_data=portfolio_data)
+                         portfolio_data=portfolio_data,
+                         market_open=market_open,
+                         holiday_status=holiday.name if holiday else None)
 
 @app.route('/create-stock', methods=['POST'])
 @login_required
@@ -884,6 +887,11 @@ def is_market_open():
 @login_required
 def buy_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
+
+    # Check if the market is open
+    if not is_market_open():
+        return jsonify({"error": "Market is currently closed"}), 400
+
     try:
         shares = int(request.form.get('shares'))
         locked_price = float(request.form.get('locked_price'))
@@ -920,6 +928,11 @@ def buy_stock(stock_id):
 @login_required
 def sell_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
+
+    # Check if the market is open
+    if not is_market_open():
+        return jsonify({"error": "Market is currently closed"}), 400
+
     try:
         shares = int(request.form.get('shares'))
         locked_price = float(request.form.get('locked_price'))
